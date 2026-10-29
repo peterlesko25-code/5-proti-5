@@ -811,9 +811,20 @@
     sounds.theme.loop = true;
     let timerInterval = null;
 
-    // URČENIE REŽIMU Z URL
+    // URČENIE REŽIMU A MIESTNOSTI Z URL
     const urlParams = new URLSearchParams(window.location.search);
     const roleParam = urlParams.get('role');
+
+    // Získanie kódu relácie (miestnosti)
+    let roomIdParam = urlParams.get('room');
+    if (!roomIdParam && (roleParam === 'moderator' || roleParam === 'divaci')) {
+        roomIdParam = prompt("Zadajte kód relácie/miestnosti (napr. 100):", "100") || "default";
+    }
+
+    // Pripojenie do konkrétnej miestnosti na serveri
+    if (roomIdParam) {
+        socket.emit('join_room', roomIdParam);
+    }
 
     if (roleParam === 'moderator') {
       initModerator();
