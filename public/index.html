@@ -1,0 +1,1707 @@
+<!DOCTYPE html>
+<html lang="sk">
+<head>
+  <script src="/socket.io/socket.io.js"></script>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>5 proti 5 - Interaktívna Hra</title>
+  <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;700;900&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg-primary: #0a0e17;
+      --bg-card: #161f33;
+      --gold-main: #ffd700;
+      --gold-gradient: linear-gradient(135deg, #bf953f, #fcf6ba, #b38728, #fbf5b7, #aa771c);
+      --blue-accent: #00d2ff;
+      --red-strike: #ff2a2a;
+      --text-light: #ffffff;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Montserrat', sans-serif; }
+    body { background-color: var(--bg-primary); color: var(--text-light); min-height: 100vh; overflow-x: hidden; }
+
+    /* LAUNCHER SCREEN */
+    #launcher {
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      min-height: 100vh; text-align: center; padding: 20px;
+      background: radial-gradient(circle at center, #1e2942 0%, #0a0e17 100%);
+    }
+    .launcher-title { font-size: 3.5rem; font-weight: 900; background: var(--gold-gradient); -webkit-background-clip: text; -webkit-text-fill-color: transparent; margin-bottom: 10px; }
+    .launcher-subtitle { font-size: 1.2rem; color: #a0aec0; margin-bottom: 40px; }
+    .launcher-btn-group { display: flex; gap: 20px; flex-wrap: wrap; justify-content: center; }
+    .btn-launch {
+      padding: 25px 40px; font-size: 1.4rem; font-weight: 700; border: none; border-radius: 15px;
+      cursor: pointer; transition: all 0.3s ease; display: flex; flex-direction: column; align-items: center; gap: 10px;
+      min-width: 280px; text-decoration: none; color: white;
+    }
+    .btn-launch-mod { background: linear-gradient(135deg, #1e3c72, #2a5298); box-shadow: 0 10px 20px rgba(30,60,114,0.4); }
+    .btn-launch-divaci { background: linear-gradient(135deg, #b71c1c, #e53935); box-shadow: 0 10px 20px rgba(229,57,53,0.4); }
+    .btn-launch:hover { transform: translateY(-5px); filter: brightness(1.1); }
+
+    /* SPECTATOR BOARD (DIVÁCI) */
+    #spectator-view {
+      display: none;
+      flex-direction: column;
+      align-items: center;
+      justify-content: space-between;
+      height: 100vh;
+      max-height: 100vh;
+      padding: 10px 20px;
+      background:
+        radial-gradient(ellipse 90% 65% at 50% 25%, #c81840 0%, #830e28 55%, #420210 100%),
+        repeating-linear-gradient(40deg, rgba(255,255,255,0.055) 0px, rgba(255,255,255,0.055) 7px, transparent 7px, transparent 17px);
+      background-blend-mode: overlay, normal;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .tv-broadcast-corner {
+      position: absolute;
+      top: 12px;
+      z-index: 10;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      user-select: none;
+      opacity: 0.9;
+    }
+    .tv-corner-left { left: 20px; }
+    .tv-corner-right { right: 20px; }
+    .tv-hd-badge { font-size: 0.75rem; font-weight: 900; color: rgba(255,255,255,0.7); }
+    .tv-channel-logo { font-size: 1.8rem; font-weight: 900; color: #ffffff; letter-spacing: -1.5px; text-shadow: 0 2px 8px rgba(0,0,0,0.8); line-height: 1; }
+    .tv-premiera-badge {
+      font-size: 0.7rem; font-weight: 900; background: rgba(0, 0, 0, 0.7); color: #ffffff;
+      padding: 2px 6px; border-radius: 4px; letter-spacing: 1px; border: 1px solid rgba(255, 255, 255, 0.25);
+      text-shadow: 0 1px 2px rgba(0,0,0,0.8);
+    }
+    .tv-age-rating {
+      width: 28px; height: 28px; border-radius: 50%; border: 2px solid rgba(255, 255, 255, 0.75);
+      color: #ffffff; font-size: 0.85rem; font-weight: 900; display: flex; align-items: center;
+      justify-content: center; background: rgba(0, 0, 0, 0.35); box-shadow: 0 2px 6px rgba(0,0,0,0.6);
+    }
+
+    .spec-top-row {
+      display: flex; align-items: center; justify-content: center; gap: 20px;
+      margin-bottom: 5px; width: 100%; max-width: 900px; min-height: 32px; position: relative;
+    }
+    .multiplier-tag {
+      font-size: 0.85rem; font-weight: 900; padding: 2px 12px; border-radius: 12px;
+      letter-spacing: 1px; animation: multGlow 1.4s infinite alternate; text-transform: uppercase;
+    }
+    .multiplier-tag.mult-2x {
+      background: linear-gradient(135deg, #ff8c00, #ff0055); border: 2px solid #ffdd00;
+      color: #ffffff; box-shadow: 0 0 15px #ff5500;
+    }
+    .multiplier-tag.mult-3x {
+      background: linear-gradient(135deg, #a855f7, #ec4899); border: 2px solid #00f0ff;
+      color: #ffffff; box-shadow: 0 0 18px #00f0ff;
+    }
+    @keyframes multGlow {
+      0% { transform: scale(1); filter: brightness(1); }
+      100% { transform: scale(1.08); filter: brightness(1.3); }
+    }
+
+    .spec-timer-widget {
+      display: flex; flex-direction: column; align-items: center;
+      background: rgba(14, 21, 37, 0.92); border: 2px solid #00f0ff;
+      border-radius: 10px; padding: 4px 14px; box-shadow: 0 0 15px rgba(0, 240, 255, 0.5);
+      animation: timerWidgetPop 0.3s ease-out;
+    }
+    @keyframes timerWidgetPop {
+      0% { transform: scale(0.7); opacity: 0; }
+      100% { transform: scale(1); opacity: 1; }
+    }
+    .timer-team-label { font-size: 0.75rem; font-weight: 900; color: #00f0ff; letter-spacing: 1.2px; }
+    .timer-countdown { font-size: 2.2rem; font-weight: 900; color: #ffffff; text-shadow: 0 0 12px #ff0044; line-height: 1; }
+    .timer-countdown.warning { color: #ff2a2a; animation: timerWarnPulse 0.4s infinite alternate; }
+    @keyframes timerWarnPulse {
+      0% { transform: scale(1); }
+      100% { transform: scale(1.15); filter: drop-shadow(0 0 12px #ff0000); }
+    }
+    .timer-bar-wrap { width: 75px; height: 6px; background: rgba(255, 255, 255, 0.2); border-radius: 3px; margin-top: 3px; overflow: hidden; }
+    .timer-bar-fill { height: 100%; width: 100%; background: linear-gradient(90deg, #00f0ff, #ff0055); transition: width 1s linear; }
+
+    .question-display {
+      width: 100%; max-width: 980px;
+      background: linear-gradient(180deg, rgba(22, 31, 51, 0.95), rgba(12, 18, 32, 0.95));
+      border-radius: 12px; padding: 10px 20px; text-align: center;
+      border: 2px solid rgba(255, 215, 0, 0.35);
+      box-shadow: 0 6px 20px rgba(0,0,0,0.5), inset 0 0 15px rgba(255, 215, 0, 0.08);
+      margin-bottom: 10px; min-height: 70px; display: flex; align-items: center; justify-content: center;
+      position: relative; transition: all 0.4s ease;
+    }
+    .question-display.showing-logo {
+      border-color: rgba(255, 215, 0, 0.45);
+      box-shadow: 0 6px 20px rgba(0,0,0,0.5), 0 0 20px rgba(255, 215, 0, 0.15);
+    }
+    .question-text {
+      font-size: 1.45rem; font-weight: 800; color: #ffffff; text-shadow: 0 2px 10px rgba(0, 0, 0, 0.8);
+      animation: revealQuestionAnim 0.45s cubic-bezier(0.175, 0.885, 0.32, 1.25); width: 100%; line-height: 1.25;
+    }
+    @keyframes revealQuestionAnim {
+      0% { opacity: 0; transform: translateY(-12px) scale(0.97); }
+      100% { opacity: 1; transform: translateY(0) scale(1); }
+    }
+
+    .question-logo-wrap { display: flex; align-items: center; justify-content: center; width: 100%; height: 100%; animation: fadeInLogo 0.4s ease-out; }
+    @keyframes fadeInLogo { 0% { opacity: 0; transform: scale(0.95); } 100% { opacity: 1; transform: scale(1); } }
+
+    .question-logo-img {
+      max-height: 55px; max-width: 90%; object-fit: contain; filter: drop-shadow(0 4px 15px rgba(0, 0, 0, 0.6));
+      animation: logoFloat 3.5s ease-in-out infinite alternate;
+    }
+    @keyframes logoFloat {
+      0% { transform: scale(1); filter: drop-shadow(0 2px 10px rgba(255, 215, 0, 0.25)); }
+      100% { transform: scale(1.02); filter: drop-shadow(0 4px 22px rgba(255, 215, 0, 0.5)); }
+    }
+
+    .logo-fallback-badge { display: flex; align-items: center; justify-content: center; gap: 12px; user-select: none; }
+    .logo-fallback-num { font-size: 2.2rem; font-weight: 900; background: var(--gold-gradient); -webkit-background-clip: text; -webkit-text-fill-color: transparent; filter: drop-shadow(0 2px 8px rgba(255,215,0,0.5)); line-height: 1; }
+    .logo-fallback-text { font-size: 1.2rem; font-weight: 900; letter-spacing: 4px; color: #ffffff; text-shadow: 0 0 12px rgba(0, 210, 255, 0.8); }
+
+    #spec-full-logo-overlay {
+      position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
+      background: radial-gradient(circle at center, #1b2845 0%, #080c14 100%);
+      z-index: 500; display: none; flex-direction: column; align-items: center; justify-content: center; text-align: center; padding: 30px;
+    }
+    .full-logo-container { display: flex; flex-direction: column; align-items: center; justify-content: center; max-width: 90%; }
+    .full-logo-img { max-height: 280px; max-width: 85vw; object-fit: contain; filter: drop-shadow(0 10px 40px rgba(0, 0, 0, 0.8)) drop-shadow(0 0 30px rgba(255, 215, 0, 0.35)); animation: fullLogoBreath 4s ease-in-out infinite alternate; }
+    @keyframes fullLogoBreath { 0% { transform: scale(1); } 100% { transform: scale(1.03); } }
+    .full-logo-fallback { display: flex; flex-direction: column; align-items: center; gap: 15px; }
+    .full-logo-title-row { display: flex; align-items: center; gap: 25px; }
+    .full-logo-gold-num { font-size: 6rem; font-weight: 900; background: var(--gold-gradient); -webkit-background-clip: text; -webkit-text-fill-color: transparent; filter: drop-shadow(0 10px 30px rgba(255, 215, 0, 0.5)); }
+    .full-logo-mid-txt { font-size: 3rem; font-weight: 900; color: #ffffff; letter-spacing: 8px; text-shadow: 0 0 30px rgba(0, 210, 255, 0.8); }
+    .full-logo-sub { font-size: 1.2rem; font-weight: 700; letter-spacing: 3px; color: #ffd700; text-transform: uppercase; opacity: 0.85; }
+
+    .mod-question-control-box { background: #0d1525; border: 1px solid #2a3b5c; border-radius: 10px; padding: 14px; margin-bottom: 16px; }
+    .mod-status-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; flex-wrap: wrap; gap: 8px; }
+    .q-status-badge { padding: 6px 14px; border-radius: 20px; font-size: 0.88rem; font-weight: 700; display: inline-flex; align-items: center; gap: 6px; }
+    .status-hidden { background: rgba(229, 57, 53, 0.2); color: #ff6b6b; border: 1px solid #e53935; }
+    .status-visible { background: rgba(46, 125, 50, 0.2); color: #81c784; border: 1px solid #2e7d32; }
+    .shortcut-hint { font-size: 0.82rem; color: #8892b0; }
+    .q-control-buttons { display: flex; gap: 10px; }
+    .btn-reveal-q { flex: 1.4; background: linear-gradient(135deg, #2e7d32, #1b5e20); color: #ffffff; font-size: 1.05rem; padding: 12px 18px; box-shadow: 0 4px 15px rgba(46, 125, 50, 0.35); }
+    .btn-hide-q { flex: 1.4; background: linear-gradient(135deg, #e65100, #bf360c); color: #ffffff; font-size: 1.05rem; padding: 12px 18px; box-shadow: 0 4px 15px rgba(230, 81, 0, 0.35); }
+    .btn-full-logo { flex: 1; background: #1e293b; color: #e2e8f0; border: 1px solid #475569; font-size: 0.95rem; padding: 12px 14px; }
+    .btn-full-logo.active { background: linear-gradient(135deg, #0288d1, #01579b); border-color: #00d2ff; color: white; box-shadow: 0 0 15px rgba(0, 210, 255, 0.4); }
+    .mod-logo-preview-row { display: flex; align-items: center; justify-content: space-between; padding: 10px 14px; background: #0a0e17; border-radius: 8px; border: 1px solid #2a3b5c; }
+    .logo-status-tag { font-size: 0.82rem; padding: 4px 10px; border-radius: 6px; font-weight: 700; }
+    .logo-status-tag.ok { background: rgba(46, 125, 50, 0.25); color: #81c784; border: 1px solid #2e7d32; }
+    .logo-status-tag.warn { background: rgba(245, 124, 0, 0.25); color: #ffb74d; border: 1px solid #f57c00; }
+
+    .answers-wrapper { width: 100%; max-width: 960px; display: flex; flex-direction: column; align-items: center; margin-bottom: 8px; }
+    .answers-column { width: 100%; display: flex; flex-direction: column; gap: 6px; }
+    .card-container { perspective: 1000px; height: 48px; width: 100%; }
+    .card { width: 100%; height: 100%; position: relative; transform-style: preserve-3d; transition: transform 0.75s cubic-bezier(0.175, 0.885, 0.32, 1.25); }
+    .card.flipped { transform: rotateX(180deg); }
+    .card-face { position: absolute; width: 100%; height: 100%; backface-visibility: hidden; border-radius: 7px; display: flex; align-items: center; font-weight: 800; }
+
+    .card-front {
+      background: linear-gradient(90deg, #101828 0%, #1e2c4d 50%, #101828 100%);
+      border: 2px solid #2a4b8d; box-shadow: 0 3px 10px rgba(0, 0, 0, 0.6), inset 0 0 10px rgba(59, 130, 246, 0.25);
+      justify-content: space-between; padding: 0 18px; color: #ffd700;
+    }
+    .card-front-num { font-size: 1.4rem; font-weight: 900; color: #ffd700; text-shadow: 0 2px 4px rgba(0, 0, 0, 0.8); }
+    .card-front-dots { color: rgba(255, 215, 0, 0.35); font-size: 1.1rem; letter-spacing: 3px; }
+
+    .card-back {
+      background: linear-gradient(90deg, #d31842 0%, #ea580c 35%, #f59e0b 75%, #fbbf24 100%);
+      transform: rotateX(180deg); border: 2px solid #ff1493;
+      box-shadow: 0 0 14px rgba(255, 20, 147, 0.7), 0 3px 10px rgba(0, 0, 0, 0.5);
+      justify-content: space-between; padding: 0 0 0 16px; color: #ffffff; overflow: hidden;
+    }
+    .card-back-text { font-size: 1.35rem; font-weight: 900; color: #ffffff; text-shadow: 0 2px 4px rgba(0, 0, 0, 0.9), 0 0 8px rgba(0, 0, 0, 0.5); letter-spacing: 0.5px; display: flex; align-items: center; gap: 10px; }
+    .card-back-points {
+      background: linear-gradient(180deg, #fef08a 0%, #facc15 50%, #eab308 100%);
+      color: #880015; font-size: 1.5rem; font-weight: 900; height: 100%; min-width: 75px;
+      display: flex; align-items: center; justify-content: center; border-left: 2px solid #b45309;
+      text-shadow: 0 1px 0 rgba(255, 255, 255, 0.4); box-shadow: inset 0 0 8px rgba(234, 88, 12, 0.25);
+    }
+
+    .spec-round-sum-row { width: 100%; display: flex; justify-content: flex-end; margin-top: 6px; }
+    .spec-sum-box {
+      display: flex; align-items: center; background: linear-gradient(90deg, #ea580c 0%, #f59e0b 100%);
+      border: 2px solid #ff1493; box-shadow: 0 0 12px rgba(255, 20, 147, 0.55); border-radius: 6px; overflow: hidden; height: 38px;
+    }
+    .spec-sum-label { padding: 0 14px; font-size: 1.1rem; font-weight: 900; color: #ffffff; text-shadow: 0 2px 4px rgba(0, 0, 0, 0.8); }
+    .spec-sum-value {
+      background: linear-gradient(180deg, #fef08a, #eab308); color: #880015;
+      font-size: 1.3rem; font-weight: 900; height: 100%; min-width: 65px;
+      display: flex; align-items: center; justify-content: center; border-left: 2px solid #b45309;
+    }
+
+    .spec-bottom-bar { width: 100%; max-width: 960px; display: flex; justify-content: space-between; align-items: flex-end; padding: 5px 0; }
+    .spec-team-block { display: flex; flex-direction: column; align-items: center; gap: 5px; }
+    .team-name-label { font-size: 1.1rem; font-weight: 900; color: #ffd700; letter-spacing: 1.5px; text-shadow: 0 2px 5px rgba(0, 0, 0, 0.8); }
+    .team-strikes-row { display: flex; gap: 8px; align-items: center; }
+    .strike-circle {
+      width: 42px; height: 42px; border-radius: 50%; display: flex; align-items: center; justify-content: center;
+      background: radial-gradient(circle at 35% 35%, #2a0b12 0%, #150308 70%, #0a0104 100%);
+      border: 2px solid rgba(255, 255, 255, 0.25); box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.8), 0 2px 4px rgba(0, 0, 0, 0.5);
+      transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    }
+    .strike-circle .strike-x { font-size: 1.4rem; font-weight: 900; color: #ff3355; opacity: 0.18; transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275); user-select: none; }
+    .strike-circle.active {
+      background: radial-gradient(circle at 35% 35%, #ff4d6d 0%, #dc143c 55%, #800020 100%);
+      border: 2.5px solid #ffffff; box-shadow: 0 0 16px #ff0044, 0 0 28px rgba(255, 0, 68, 0.85), inset 0 2px 4px rgba(255, 255, 255, 0.8);
+      transform: scale(1.06);
+    }
+    .strike-circle.active .strike-x { opacity: 1; color: #ffffff; text-shadow: 0 0 8px rgba(255, 255, 255, 0.9), 0 2px 4px rgba(0, 0, 0, 0.8); animation: strikePopIn 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275); }
+    @keyframes strikePopIn { 0% { transform: scale(0); } 100% { transform: scale(1); } }
+
+    .team-score-box {
+      background: linear-gradient(180deg, #df2200 0%, #ff6a00 50%, #ffa600 100%);
+      border: 2.5px solid #00f0ff; border-radius: 10px; padding: 4px 28px; min-width: 130px; text-align: center;
+      box-shadow: 0 0 15px rgba(0, 240, 255, 0.65), inset 0 0 8px rgba(0, 240, 255, 0.25);
+    }
+    .team-score-value { font-size: 2.4rem; font-weight: 900; color: #ffffff; text-shadow: 0 3px 0 #0044cc, 0 0 12px rgba(0, 210, 255, 0.7); line-height: 1; }
+
+    #strike-overlay {
+      position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
+      background: rgba(0,0,0,0.85); display: none; align-items: center; justify-content: center; gap: 30px; z-index: 999;
+    }
+    .big-x { font-size: 18rem; font-weight: 900; color: var(--red-strike); text-shadow: 0 0 50px var(--red-strike); animation: pop 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275); }
+    @keyframes pop { 0% { transform: scale(0); } 100% { transform: scale(1); } }
+
+    #moderator-view { display: none; padding: 20px; max-width: 1440px; margin: 0 auto; }
+    .mod-header {
+      display: flex; justify-content: space-between; align-items: center; margin-bottom: 18px;
+      background: linear-gradient(135deg, #161f33, #0f172a); border: 1.5px solid rgba(255, 215, 0, 0.4);
+      box-shadow: 0 6px 25px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.08); padding: 15px 25px; border-radius: 12px;
+    }
+    .status-badge { padding: 6px 14px; border-radius: 20px; font-size: 0.9rem; font-weight: 700; background: #2e7d32; box-shadow: 0 0 10px rgba(46, 125, 50, 0.5); }
+
+    .mod-studio-hud {
+      display: grid; grid-template-columns: 1.2fr 1.3fr 1.5fr; gap: 16px; margin-bottom: 20px;
+      background: linear-gradient(135deg, rgba(16, 25, 45, 0.95), rgba(8, 12, 22, 0.95));
+      border: 2px solid rgba(255, 215, 0, 0.35); border-radius: 14px; padding: 16px 20px;
+      box-shadow: 0 8px 30px rgba(0, 0, 0, 0.6), 0 0 20px rgba(255, 215, 0, 0.12);
+    }
+    .mod-hud-bank-block { display: flex; flex-direction: column; align-items: center; justify-content: center; border-right: 1px solid rgba(255, 215, 0, 0.2); padding-right: 15px; }
+    .mod-hud-label-row { display: flex; align-items: center; gap: 10px; margin-bottom: 6px; }
+    .mod-hud-title { font-size: 0.85rem; font-weight: 900; letter-spacing: 1.5px; color: #ffd700; text-transform: uppercase; }
+    .mod-hud-bank-box {
+      background: linear-gradient(180deg, #df2200 0%, #ff6a00 50%, #ffa600 100%);
+      border: 2.5px solid #00f0ff; border-radius: 10px; padding: 4px 28px; display: flex; align-items: baseline; gap: 8px;
+      box-shadow: 0 0 20px rgba(0, 240, 255, 0.65), inset 0 0 10px rgba(0, 240, 255, 0.3); animation: bankPulseAnim 2.5s infinite alternate;
+    }
+    @keyframes bankPulseAnim {
+      0% { transform: scale(1); box-shadow: 0 0 20px rgba(0, 240, 255, 0.6), inset 0 0 10px rgba(0, 240, 255, 0.2); }
+      100% { transform: scale(1.03); box-shadow: 0 0 35px rgba(0, 240, 255, 0.9), 0 0 45px rgba(224, 36, 195, 0.4), inset 0 0 18px rgba(0, 240, 255, 0.4); }
+    }
+    .mod-hud-bank-num { font-size: 2.4rem; font-weight: 900; color: #ffffff; text-shadow: 0 2px 0 #0044cc, 0 0 12px rgba(0, 210, 255, 0.8); line-height: 1; }
+    .mod-hud-bank-pts { font-size: 0.85rem; font-weight: 900; color: #ffd700; }
+
+    .mod-hud-round-block { display: flex; flex-direction: column; justify-content: center; border-right: 1px solid rgba(255, 215, 0, 0.2); padding: 0 15px; }
+    .mod-hud-round-sum { font-size: 1.1rem; color: #e2e8f0; margin: 6px 0 4px 0; display: flex; align-items: center; gap: 8px; }
+    .mod-hud-round-sum strong { color: #ffd700; font-size: 1.35rem; text-shadow: 0 0 10px rgba(255, 215, 0, 0.5); }
+    .mod-hud-q-preview { font-size: 0.85rem; color: #94a3b8; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 280px; }
+
+    .mod-hud-scores-block { display: flex; align-items: center; justify-content: space-around; gap: 12px; padding-left: 10px; }
+    .mod-hud-score-card { background: rgba(10, 16, 28, 0.8); border: 1.5px solid #2a3b5c; border-radius: 10px; padding: 8px 18px; text-align: center; min-width: 105px; box-shadow: inset 0 0 10px rgba(0,0,0,0.5); }
+    .mod-hud-team-name { font-size: 0.82rem; font-weight: 900; color: #ffd700; margin-bottom: 2px; letter-spacing: 1px; }
+    .mod-hud-score-val { font-size: 1.8rem; font-weight: 900; color: #00f0ff; text-shadow: 0 0 10px rgba(0, 240, 255, 0.5); line-height: 1; }
+    .mod-hud-vs { font-size: 1rem; font-weight: 900; color: rgba(255, 215, 0, 0.4); }
+
+    .mod-grid { display: grid; grid-template-columns: 1.4fr 1fr; gap: 20px; }
+    .mod-card {
+      background: linear-gradient(145deg, #131c2e, #0c1220); border-radius: 14px; padding: 22px;
+      border: 1.5px solid rgba(255, 215, 0, 0.35); box-shadow: 0 8px 30px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255, 255, 255, 0.08), 0 0 16px rgba(255, 215, 0, 0.1);
+      margin-bottom: 20px; position: relative;
+    }
+    .mod-card::before { content: ''; position: absolute; top: 0; left: 15%; right: 15%; height: 1px; background: linear-gradient(90deg, transparent, rgba(255, 215, 0, 0.7), transparent); }
+    .mod-title { font-size: 1.25rem; font-weight: 900; background: var(--gold-gradient); -webkit-background-clip: text; -webkit-text-fill-color: transparent; margin-bottom: 16px; letter-spacing: 0.5px; filter: drop-shadow(0 2px 4px rgba(0,0,0,0.6)); display: flex; align-items: center; gap: 8px; }
+
+    .mod-answer-row {
+      display: flex; justify-content: space-between; align-items: center; padding: 12px 16px;
+      background: linear-gradient(180deg, #101828, #0a0e18); border-radius: 10px; margin-bottom: 10px;
+      border: 1.5px solid #243555; box-shadow: 0 4px 10px rgba(0, 0, 0, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.05);
+      transition: all 0.25s cubic-bezier(0.175, 0.885, 0.32, 1.25);
+    }
+    .mod-answer-row:hover { border-color: #3b82f6; transform: translateY(-1px); }
+    .mod-answer-row.revealed { border-color: #00f0ff; background: linear-gradient(90deg, #0e2d24 0%, #091e18 100%); box-shadow: 0 0 16px rgba(0, 240, 255, 0.35), inset 0 0 10px rgba(0, 255, 136, 0.15); transform: translateY(-2px); }
+
+    .btn-action { padding: 10px 18px; font-size: 1rem; font-weight: 700; border: none; border-radius: 8px; cursor: pointer; transition: all 0.18s ease; box-shadow: 0 4px 0 rgba(0,0,0,0.4), 0 4px 10px rgba(0,0,0,0.3); }
+    .btn-action:hover { filter: brightness(1.15); transform: translateY(-1px); }
+    .btn-action:active { transform: translateY(2px); box-shadow: 0 1px 0 rgba(0,0,0,0.4); }
+    .btn-reveal { background: #2e7d32; color: white; }
+    .btn-strike { background: #c62828; color: white; font-size: 1.1rem; padding: 12px 20px; }
+    .btn-score { background: #0288d1; color: white; }
+    .btn-control { background: #37474f; color: white; }
+
+    .q-select { width: 100%; padding: 12px; background: #0a0e17; color: white; border: 1px solid #2a3b5c; border-radius: 8px; font-size: 1rem; margin-bottom: 12px; }
+
+    .mod-mult-box { background: #090e18; border: 1px solid #2a3b5c; border-radius: 8px; padding: 12px 14px; margin-top: 12px; margin-bottom: 14px; }
+    .btn-mult { flex: 1; background: #1e293b; color: #a0aec0; border: 1px solid #475569; font-size: 0.95rem; padding: 10px 12px; }
+    .btn-mult.active { background: linear-gradient(135deg, #f59e0b, #d97706); border-color: #ffd700; color: #000000; font-weight: 900; box-shadow: 0 0 15px rgba(255, 215, 0, 0.5); }
+
+    .mod-timer-status-row { display: flex; justify-content: space-between; align-items: center; background: #0a0e17; border: 1px solid #2a3b5c; border-radius: 8px; padding: 12px 16px; margin-bottom: 12px; }
+    .mod-timer-num { font-size: 2.2rem; font-weight: 900; color: #00f0ff; font-family: monospace; }
+    .mod-timer-buttons { display: flex; gap: 10px; flex-wrap: wrap; }
+    .btn-timer-a { flex: 1.2; background: linear-gradient(135deg, #1e3c72, #2a5298); color: white; padding: 12px 14px; }
+    .btn-timer-b { flex: 1.2; background: linear-gradient(135deg, #b71c1c, #e53935); color: white; padding: 12px 14px; }
+
+    .mod-team-strikes-container { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; }
+    .mod-team-strike-col { background: #0a0e17; border: 1px solid #2a3b5c; border-radius: 8px; padding: 12px; text-align: center; }
+    .mod-strike-team-name { font-size: 1.1rem; font-weight: 900; color: #ffd700; margin-bottom: 8px; }
+    .mod-strike-circles { display: flex; justify-content: center; gap: 8px; margin-bottom: 8px; }
+    .mod-strike-dot {
+      width: 38px; height: 38px; border-radius: 50%; border: 2px solid #555; background: #1a1a24;
+      color: #555; display: flex; align-items: center; justify-content: center; font-weight: 900; font-size: 1.2rem;
+      cursor: pointer; transition: all 0.2s; user-select: none;
+    }
+    .mod-strike-dot.active { background: #ff2a2a; border-color: #fff; color: #fff; box-shadow: 0 0 12px #ff2a2a; }
+    .btn-strike-small { flex: 1; background: #c62828; color: white; padding: 8px 10px; font-size: 0.9rem; }
+    .btn-control-small { flex: 1; background: #37474f; color: white; padding: 8px 10px; font-size: 0.9rem; }
+
+    .modal-overlay {
+      position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
+      background: rgba(0, 0, 0, 0.85); z-index: 9999; display: flex; align-items: center; justify-content: center; backdrop-filter: blur(5px);
+    }
+    .modal-card {
+      background: #161f33; border: 2px solid #ffd700; border-radius: 14px;
+      box-shadow: 0 0 35px rgba(255, 215, 0, 0.3); width: 90%; max-width: 680px; padding: 24px; animation: modalScale 0.25s ease-out;
+    }
+    @keyframes modalScale { 0% { transform: scale(0.9); opacity: 0; } 100% { transform: scale(1); opacity: 1; } }
+    .modal-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; border-bottom: 1px solid #2a3b5c; padding-bottom: 10px; }
+    .modal-header h3 { color: #ffd700; font-size: 1.4rem; }
+    .btn-close { background: none; border: none; color: #a0aec0; font-size: 1.5rem; cursor: pointer; }
+    .btn-close:hover { color: white; }
+    .modal-footer { display: flex; justify-content: flex-end; gap: 10px; margin-top: 18px; border-top: 1px solid #2a3b5c; padding-top: 12px; }
+    .editor-ans-row { display: flex; gap: 8px; align-items: center; margin-bottom: 8px; }
+    .editor-ans-text { flex: 3; padding: 10px; background: #0a0e17; color: white; border: 1px solid #2a3b5c; border-radius: 6px; font-size: 0.95rem; }
+    .editor-ans-points { width: 85px; padding: 10px; background: #0a0e17; color: #ffd700; font-weight: 700; border: 1px solid #2a3b5c; border-radius: 6px; font-size: 0.95rem; text-align: center; }
+    .btn-del-row { background: #c62828; color: white; border: none; border-radius: 6px; padding: 10px 14px; cursor: pointer; font-weight: 900; }
+  </style>
+</head>
+<body>
+
+  <!-- 1. SPUŠŤAČ (LAUNCHER) -->
+  <div id="launcher">
+    <h1 class="launcher-title">5 PROTI 5</h1>
+    <p class="launcher-subtitle">Vyberte režim okna pre toto zariadenie:</p>
+    <div class="launcher-btn-group">
+      <button class="btn-launch btn-launch-mod" onclick="launchMode('moderator')">
+        <span>🎙️ MODERAČNÝ PANEL</span>
+        <small style="font-weight: 400; font-size: 0.9rem;">(Pre monitor moderátora / mobil)</small>
+      </button>
+      <button class="btn-launch btn-launch-divaci" onclick="launchMode('divaci')">
+        <span>📺 PROJEKTOR / DIVÁCI</span>
+        <small style="font-weight: 400; font-size: 0.9rem;">(Pre obrazovku divákov)</small>
+      </button>
+    </div>
+  </div>
+
+  <!-- 2. HRACIA TABUĽA PRE DIVÁKOV -->
+  <div id="spectator-view">
+    <div class="tv-broadcast-corner tv-corner-left">
+      <span class="tv-hd-badge">HD</span>
+      <span class="tv-channel-logo">:1</span>
+      <span class="tv-premiera-badge">★ PREMIÉRA</span>
+    </div>
+    <div class="tv-broadcast-corner tv-corner-right">
+      <div class="tv-age-rating">12</div>
+    </div>
+
+    <!-- HORNÁ ČASŤ: NÁSOBIČ A ČASOVAČ -->
+    <div class="spec-top-row">
+      <div id="spec-multiplier-tag" class="multiplier-tag mult-2x" style="display: none;">2x BODY</div>
+
+      <div id="spec-timer-container" class="spec-timer-widget" style="display: none;">
+        <div class="timer-team-label" id="spec-timer-team">TÍM A</div>
+        <div class="timer-countdown" id="spec-timer-num">5</div>
+        <div class="timer-bar-wrap">
+          <div class="timer-bar-fill" id="spec-timer-bar"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- OTÁZKA / LOGO RELÁCIE -->
+    <div class="question-display showing-logo" id="spec-question-box">
+      <div id="spec-question-text" class="question-text" style="display: none;">ČAKÁ SA NA OTÁZKU...</div>
+
+      <div id="spec-question-logo-wrap" class="question-logo-wrap">
+        <img id="spec-logo-img" class="question-logo-img" src="logo.png" alt="5 proti 5 Logo" onerror="handleLogoImgError(this)" onload="handleLogoImgLoad(this)">
+        <div id="spec-logo-fallback" class="logo-fallback-badge" style="display: none;">
+          <span class="logo-fallback-num">5</span>
+          <span class="logo-fallback-text">PROTI</span>
+          <span class="logo-fallback-num">5</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- ZOZNAM ODPOVEDÍ -->
+    <div class="answers-wrapper">
+      <div class="answers-column" id="spec-grid"></div>
+
+      <div class="spec-round-sum-row" id="spec-round-sum-row">
+        <div class="spec-sum-box">
+          <span class="spec-sum-label">Spolu</span>
+          <span class="spec-sum-value" id="spec-round-sum">0</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- SPODNÝ PANEL: POČÍTADLÁ X A TÍMOVÉ SKÓRE -->
+    <div class="spec-bottom-bar">
+      <!-- TÍM A -->
+      <div class="spec-team-block team-a-block">
+        <div class="team-name-label" id="spec-teamA-name">TÍM A</div>
+        <div class="team-strikes-row" id="spec-strikes-a">
+          <div class="strike-circle" data-idx="1"><span class="strike-x">✖</span></div>
+          <div class="strike-circle" data-idx="2"><span class="strike-x">✖</span></div>
+          <div class="strike-circle" data-idx="3"><span class="strike-x">✖</span></div>
+        </div>
+        <div class="team-score-box">
+          <div class="team-score-value" id="spec-teamA-score">0</div>
+        </div>
+      </div>
+
+      <!-- TÍM B -->
+      <div class="spec-team-block team-b-block">
+        <div class="team-name-label" id="spec-teamB-name">TÍM B</div>
+        <div class="team-strikes-row" id="spec-strikes-b">
+          <div class="strike-circle" data-idx="1"><span class="strike-x">✖</span></div>
+          <div class="strike-circle" data-idx="2"><span class="strike-x">✖</span></div>
+          <div class="strike-circle" data-idx="3"><span class="strike-x">✖</span></div>
+        </div>
+        <div class="team-score-box">
+          <div class="team-score-value" id="spec-teamB-score">0</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- CELOOOBRAZOVKOVÝ REŽIM LOGA PRE DIVÁKOV -->
+  <div id="spec-full-logo-overlay">
+    <div class="full-logo-container">
+      <img id="spec-full-logo-img" class="full-logo-img" src="logo.png" alt="5 proti 5 Logo" onerror="handleFullLogoImgError(this)" onload="handleFullLogoImgLoad(this)">
+      <div id="spec-full-logo-fallback" class="full-logo-fallback" style="display: none;">
+        <div class="full-logo-title-row">
+          <span class="full-logo-gold-num">5</span>
+          <span class="full-logo-mid-txt">PROTI</span>
+          <span class="full-logo-gold-num">5</span>
+        </div>
+        <div class="full-logo-sub">INTERAKTÍVNA KVÍZOVÁ HRA</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- CHYBOVÉ "X" OVERLAY -->
+  <div id="strike-overlay"></div>
+
+  <!-- 3. MODERAČNÝ PANEL -->
+  <div id="moderator-view">
+    <div class="mod-header">
+      <h2>🎙️ Moderačný panel – 5 proti 5</h2>
+      <div>
+        <span class="status-badge" id="sync-status">🟢 Pripojené cez Socket.io</span>
+        <button class="btn-action btn-control" onclick="openSpectatorWindow()" style="margin-left: 10px;">📺 Otvoriť okno divákov</button>
+      </div>
+    </div>
+
+    <!-- LIVE PREHĽAD PRE MODERÁTORA -->
+    <div class="mod-studio-hud">
+      <div class="mod-hud-bank-block">
+        <div class="mod-hud-label-row">
+          <span class="mod-hud-title">🌟 AKTUÁLNY BANK</span>
+          <span id="mod-hud-mult" class="multiplier-tag mult-1x">1x BODY</span>
+        </div>
+        <div class="mod-hud-bank-box">
+          <span id="mod-hud-bank-val" class="mod-hud-bank-num">0</span>
+          <span class="mod-hud-bank-pts">BODOV</span>
+        </div>
+      </div>
+
+      <div class="mod-hud-round-block">
+        <div class="mod-hud-title">📊 STAV NA TABULI</div>
+        <div class="mod-hud-round-sum">
+          <span>Spolu v kole:</span>
+          <strong id="mod-hud-round-sum-val">0 b.</strong>
+        </div>
+        <div class="mod-hud-q-preview" id="mod-hud-q-preview">Otázka č. 1</div>
+      </div>
+
+      <div class="mod-hud-scores-block">
+        <div class="mod-hud-score-card">
+          <div class="mod-hud-team-name" id="mod-hud-teamA-name">TÍM A</div>
+          <div class="mod-hud-score-val" id="mod-hud-scoreA-val">0</div>
+        </div>
+        <div class="mod-hud-vs">VS</div>
+        <div class="mod-hud-score-card">
+          <div class="mod-hud-team-name" id="mod-hud-teamB-name">TÍM B</div>
+          <div class="mod-hud-score-val" id="mod-hud-scoreB-val">0</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="mod-grid">
+      <!-- ĽAVÝ STĹPEC -->
+      <div>
+        <div class="mod-card">
+          <div class="mod-title">🎯 Výber otázky a násobič</div>
+          <select class="q-select" id="question-select" onchange="changeQuestion(this.value)"></select>
+
+          <div class="mod-mult-box">
+            <span style="font-size: 0.9rem; font-weight: 700; color: #ffd700;">Násobič bodov:</span>
+            <div style="display: flex; gap: 8px; margin-top: 6px;">
+              <button id="btn-mult-1" class="btn-action btn-mult active" onclick="setMultiplier(1)">1x Normálne</button>
+              <button id="btn-mult-2" class="btn-action btn-mult" onclick="setMultiplier(2)">🔥 2x (4. kolo)</button>
+              <button id="btn-mult-3" class="btn-action btn-mult" onclick="setMultiplier(3)">⚡ 3x (5. kolo)</button>
+            </div>
+          </div>
+
+          <div class="mod-question-control-box">
+            <div class="mod-status-row">
+              <div id="mod-q-status" class="q-status-badge status-hidden">
+                🔒 Otázka je SKRYTÁ (diváci vidia logo)
+              </div>
+              <span class="shortcut-hint">Klávesová skratka: <strong>Q</strong></span>
+            </div>
+            <div class="q-control-buttons">
+              <button id="btn-toggle-q" class="btn-action btn-reveal-q" onclick="toggleQuestionVisibility()">
+                👁️ Odkryť otázku divákom
+              </button>
+              <button id="btn-toggle-fullscreen-logo" class="btn-action btn-full-logo" onclick="toggleFullLogoMode()" title="Zobraziť/skryť logo cez celú obrazovku divákov">
+                🌟 Celá obrazovka: Logo
+              </button>
+            </div>
+          </div>
+
+          <div id="mod-answers-list"></div>
+        </div>
+
+        <div class="mod-card">
+          <div class="mod-title">📝 Správa a editor vlastných otázok</div>
+          <p style="font-size: 0.85rem; color: #a0aec0; margin-bottom: 12px;">
+            Pridávajte vlastné témy a odpovede. Zmeny sa automaticky uložia v prehliadači.
+          </p>
+          <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+            <button class="btn-action btn-score" onclick="openQuestionEditor('new')">➕ Pridať novú otázku</button>
+            <button class="btn-action btn-control" onclick="openQuestionEditor('edit')">✏️ Upraviť aktuálnu</button>
+            <button class="btn-action btn-control" style="color: #ff6b6b;" onclick="deleteCurrentQuestion()">🗑️ Zmazať otázku</button>
+            <button class="btn-action btn-control" onclick="resetDefaultQuestions()" title="Obnoviť základné otázky z hry">🔄 Obnoviť pôvodné</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- PRAVÝ STĹPEC -->
+      <div>
+        <div class="mod-card">
+          <div class="mod-title">⏱️ Časovač na odpoveď (5 sekúnd)</div>
+          <p style="font-size: 0.82rem; color: #a0aec0; margin-bottom: 10px;">
+            Zvuk tikania so záverečným bzučiakom. Po vypršaní času sa tímu automaticky pripočíta <strong>X</strong>.
+          </p>
+          <div class="mod-timer-status-row">
+            <div id="mod-timer-display" class="mod-timer-num">5.0 s</div>
+            <div id="mod-timer-target" style="font-weight: 700; color: #00f0ff;">Cieľ: TÍM A</div>
+          </div>
+          <div class="mod-timer-buttons">
+            <button class="btn-action btn-timer-a" onclick="startTimer('A')">⏱️ Štart 5s: TÍM A</button>
+            <button class="btn-action btn-timer-b" onclick="startTimer('B')">⏱️ Štart 5s: TÍM B</button>
+            <button class="btn-action btn-control" onclick="stopTimer()">⏹️ Zastaviť</button>
+          </div>
+        </div>
+
+        <div class="mod-card">
+          <div class="mod-title">❌ Chyby (X) pre jednotlivé tímy</div>
+          <div class="mod-team-strikes-container">
+            <div class="mod-team-strike-col">
+              <div class="mod-strike-team-name" id="mod-label-teamA">TÍM A</div>
+              <div class="mod-strike-circles" id="mod-strikes-a">
+                <div class="mod-strike-dot" onclick="toggleTeamStrikeClick('A', 1)">✖</div>
+                <div class="mod-strike-dot" onclick="toggleTeamStrikeClick('A', 2)">✖</div>
+                <div class="mod-strike-dot" onclick="toggleTeamStrikeClick('A', 3)">✖</div>
+              </div>
+              <div style="display: flex; gap: 6px; margin-top: 6px;">
+                <button class="btn-action btn-strike-small" onclick="addStrikeToTeam('A')">+1 X</button>
+                <button class="btn-action btn-control-small" onclick="clearTeamStrikes('A')">Vynulovať</button>
+              </div>
+            </div>
+
+            <div class="mod-team-strike-col">
+              <div class="mod-strike-team-name" id="mod-label-teamB">TÍM B</div>
+              <div class="mod-strike-circles" id="mod-strikes-b">
+                <div class="mod-strike-dot" onclick="toggleTeamStrikeClick('B', 1)">✖</div>
+                <div class="mod-strike-dot" onclick="toggleTeamStrikeClick('B', 2)">✖</div>
+                <div class="mod-strike-dot" onclick="toggleTeamStrikeClick('B', 3)">✖</div>
+              </div>
+              <div style="display: flex; gap: 6px; margin-top: 6px;">
+                <button class="btn-action btn-strike-small" onclick="addStrikeToTeam('B')">+1 X</button>
+                <button class="btn-action btn-control-small" onclick="clearTeamStrikes('B')">Vynulovať</button>
+              </div>
+            </div>
+          </div>
+
+          <div style="margin-top: 15px; border-top: 1px solid #2a3b5c; padding-top: 12px;">
+            <div style="font-size: 0.82rem; color: #a0aec0; margin-bottom: 6px;">Rýchle celoobrazovkové X:</div>
+            <div style="display: flex; gap: 8px;">
+              <button class="btn-action btn-strike" style="flex: 1; padding: 10px 8px;" onclick="triggerStrike(1)">❌ 1x X</button>
+              <button class="btn-action btn-strike" style="flex: 1; padding: 10px 8px;" onclick="triggerStrike(2)">❌ 2x X</button>
+              <button class="btn-action btn-strike" style="flex: 1; padding: 10px 8px;" onclick="triggerStrike(3)">❌ 3x X</button>
+              <button class="btn-action btn-control" style="flex: 1.2; padding: 10px 8px;" onclick="clearAllStrikes()">Vymazať X</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- PRIPÍSANIE BANKU A RESET SKÓRE -->
+        <div class="mod-card">
+          <div class="mod-title">🏆 Pripísanie bodov z banky & Skóre</div>
+          <div style="display: flex; flex-direction: column; gap: 10px;">
+            <button class="btn-action btn-score" onclick="awardBank('A')">🏆 Pripísať bank Tímu A</button>
+            <button class="btn-action btn-score" onclick="awardBank('B')">🏆 Pripísať bank Tímu B</button>
+            <button class="btn-action btn-control" onclick="resetBank()">Vynulovať banku</button>
+            <button class="btn-action btn-control" style="background: #9a3412; border: 1px solid #ea580c; margin-top: 5px;" onclick="resetScores()">🔄 Vynulovať skóre tímov (0:0)</button>
+          </div>
+        </div>
+
+        <div class="mod-card">
+          <div class="mod-title">👥 Názvy tímov</div>
+          <input type="text" id="input-teamA" value="TÍM A" class="q-select" placeholder="Názov Tímu A" oninput="updateTeamNames()">
+          <input type="text" id="input-teamB" value="TÍM B" class="q-select" placeholder="Názov Tímu B" oninput="updateTeamNames()">
+        </div>
+
+        <div class="mod-card">
+          <div class="mod-title">🖼️ Logo relácie pre divákov</div>
+          <p style="font-size: 0.85rem; color: #a0aec0; margin-bottom: 12px; line-height: 1.4;">
+            Obrázok loga uložte priamo do priečinka public (napr. <code>logo.png</code> alebo <code>logo.jpg</code>).
+          </p>
+          <div style="display: flex; gap: 8px; margin-bottom: 10px;">
+            <input type="text" id="input-logo-file" value="logo.png" class="q-select" style="margin-bottom: 0;" placeholder="Názov súboru (napr. logo.png)">
+            <button class="btn-action btn-control" onclick="saveLogoFileName()">Uložiť</button>
+          </div>
+          <div class="mod-logo-preview-row">
+            <span style="font-size: 0.82rem; color: #a0aec0;">Stav súboru:</span>
+            <span id="mod-logo-status-tag" class="logo-status-tag ok">Načítava sa...</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL: EDITOR OTÁZOK -->
+  <div id="q-editor-modal" class="modal-overlay" style="display: none;">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h3 id="q-editor-title">➕ Pridať novú otázku</h3>
+        <button class="btn-close" onclick="closeQuestionEditor()">✖</button>
+      </div>
+      <div class="modal-body">
+        <label style="font-weight: 700; margin-bottom: 4px; display: block;">Znenie otázky:</label>
+        <input type="text" id="editor-q-text" class="q-select" placeholder="Napr. Čo robia ľudia hneď ráno po prebudení?">
+
+        <div style="display: flex; justify-content: space-between; align-items: center; margin: 15px 0 8px 0;">
+          <span style="font-weight: 700;">Odpovede a body:</span>
+          <span id="editor-total-points" style="font-weight: 900; color: #ffd700;">Suma bodov: 0 b.</span>
+        </div>
+        <div id="editor-answers-container" style="display: flex; flex-direction: column; gap: 8px; max-height: 300px; overflow-y: auto; padding-right: 5px;"></div>
+
+        <button class="btn-action btn-control" style="margin-top: 10px; width: 100%;" onclick="addEditorAnswerRow()">+ Pridať ďalšiu odpoveď</button>
+      </div>
+      <div class="modal-footer">
+        <button class="btn-action btn-reveal" onclick="saveQuestionFromEditor()">💾 Uložiť otázku do hry</button>
+        <button class="btn-action btn-control" onclick="closeQuestionEditor()">Zrušiť</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // ==========================================
+    // DATABÁZA OTÁZOK A LOKÁLNE UKLADANIE
+    // ==========================================
+    const defaultQuestionsDB = [
+      {
+        text: "Aké je pre teba najkrajšie oslovenie Boha?",
+        answers: [
+          { text: "Otec / Ocko / Otecko", points: 52 },
+          { text: "Boh", points: 17 },
+          { text: "Kráľ", points: 12 },
+          { text: "Pán", points: 10 },
+          { text: "Láska", points: 9 },
+        ]
+      },
+      {
+        text: "Akej biblickej postave by si sa chcel najviac podobať?",
+        answers: [
+          { text: "Ježiš", points: 30 },
+          { text: "Bohorodička / Panna Mária", points: 24 },
+          { text: "Peter", points: 17 },
+          { text: "Mária Magdaléna", points: 15 },
+          { text: "Šalamún", points: 14 }
+        ]
+      },
+      {
+        text: "Aká je tvoja obľúbená modlitba?",
+        answers: [
+          { text: "Ježišova modlitba", points: 26 },
+          { text: "Otčenáš", points: 22 },
+          { text: "Raduj sa / Zdravas Mária", points: 21 },
+          { text: "Ruženec", points: 18 },
+          { text: "Kráľu nebeský", points: 13 }
+        ]
+      },
+      {
+        text: "Miesto kde sa najradšej stretávaš s Bohom?",
+        answers: [
+          { text: "Chrám / Kostol", points: 42 },
+          { text: "Príroda", points: 20 },
+          { text: "Doma / V izbe", points: 15 },
+          { text: "Kaplnka", points: 13 },
+          { text: "Všade", points: 10 }
+        ]
+      },
+      {
+        text: "Aké je tvoje obľúbené podobenstvo?",
+        answers: [
+          { text: "O márnotratnom synovi", points: 42 },
+          { text: "O rozsievačovi", points: 18 },
+          { text: "O stratenej ovečke", points: 16 },
+          { text: "O vinici", points: 13 },
+          { text: "O horčičnom zrnku", points: 11 },
+        ]
+      }
+    ];
+
+    function loadQuestions() {
+      const saved = localStorage.getItem('5p5_custom_questions');
+      if (saved) {
+        try {
+          const parsed = JSON.parse(saved);
+          if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+        } catch(e) {}
+      }
+      return JSON.parse(JSON.stringify(defaultQuestionsDB));
+    }
+
+    let questionsDB = loadQuestions();
+
+    // ==========================================
+    // STAV HRY (GAME STATE)
+    // ==========================================
+    let gameState = {
+      currentQIndex: 0,
+      revealedAnswers: [],
+      bank: 0,
+      scoreA: 0,
+      scoreB: 0,
+      teamAName: "TÍM A",
+      teamBName: "TÍM B",
+      questionVisible: false,
+      fullLogoMode: false,
+      logoFile: localStorage.getItem('5p5_logo_file') || 'logo.png',
+      multiplier: 1,
+      strikesA: 0,
+      strikesB: 0,
+      activeTeamForTimer: 'A',
+      timerSeconds: 5,
+      timerRunning: false
+    };
+
+    // INICIALIZÁCIA SOCKET.IO NAMIESTO BROADCASTCHANNEL
+    const socket = io();
+
+    // NAČÍTANIE AUDIO SÚBOROV
+    const sounds = {
+      correct: new Audio('spravne.mp3'),
+      wrong: new Audio('chyba.mp3'),
+      tick: new Audio('tik.mp3'),
+      win: new Audio('vyhra.mp3'),
+      theme: new Audio('znelka.mp3')
+    };
+    sounds.theme.loop = true;
+    let timerInterval = null;
+
+    // URČENIE REŽIMU Z URL
+    const urlParams = new URLSearchParams(window.location.search);
+    const roleParam = urlParams.get('role');
+
+    if (roleParam === 'moderator') {
+      initModerator();
+    } else if (roleParam === 'divaci') {
+      initSpectator();
+    }
+
+    function launchMode(mode) {
+      window.location.search = `?role=${mode}`;
+    }
+
+    function openSpectatorWindow() {
+      const url = window.location.origin + window.location.pathname + '?role=divaci';
+      window.open(url, '5Proti5Divaci', 'width=1280,height=800');
+    }
+
+    // ==========================================
+    // LOGIKA PRE MODERÁTORA
+    // ==========================================
+    function initModerator() {
+      document.getElementById('launcher').style.display = 'none';
+      document.getElementById('moderator-view').style.display = 'block';
+
+      refreshQuestionSelectDropdown();
+
+      const inputLogo = document.getElementById('input-logo-file');
+      if (inputLogo) inputLogo.value = gameState.logoFile;
+
+      renderModeratorAnswers();
+      updateModeratorQuestionControls();
+      updateMultiplierButtonsUI();
+      updateModeratorStrikesUI();
+      checkModeratorLogoPreview();
+      setupModeratorKeyboardShortcuts();
+
+      socket.on('game_message', (msg) => {
+        if (msg && msg.type === 'REQUEST_STATE') {
+          broadcastState();
+        }
+      });
+
+      setInterval(() => {
+        broadcastState();
+      }, 1000);
+    }
+
+    function refreshQuestionSelectDropdown() {
+      const select = document.getElementById('question-select');
+      if (!select) return;
+      select.innerHTML = '';
+      questionsDB.forEach((q, idx) => {
+        const opt = document.createElement('option');
+        opt.value = idx;
+        opt.textContent = `${idx + 1}. ${q.text}`;
+        if (idx === gameState.currentQIndex) opt.selected = true;
+        select.appendChild(opt);
+      });
+    }
+
+    function changeQuestion(index) {
+      gameState.currentQIndex = parseInt(index);
+      gameState.revealedAnswers = [];
+      gameState.bank = 0;
+      gameState.questionVisible = false;
+
+      if (gameState.currentQIndex === 3) {
+        gameState.multiplier = 2;
+      } else if (gameState.currentQIndex >= 4) {
+        gameState.multiplier = 3;
+      } else {
+        gameState.multiplier = 1;
+      }
+
+      updateMultiplierButtonsUI();
+      renderModeratorAnswers();
+      updateModeratorQuestionControls();
+      broadcastState();
+    }
+
+    function setMultiplier(mult) {
+      gameState.multiplier = mult;
+      recalculateBankPoints();
+      updateMultiplierButtonsUI();
+      renderModeratorAnswers();
+      broadcastState();
+    }
+
+    function recalculateBankPoints() {
+      const q = questionsDB[gameState.currentQIndex];
+      let total = 0;
+      gameState.revealedAnswers.forEach(idx => {
+        if (q && q.answers[idx]) {
+          total += (q.answers[idx].points || 0) * (gameState.multiplier || 1);
+        }
+      });
+      gameState.bank = total;
+    }
+
+    function updateMultiplierButtonsUI() {
+      for (let m = 1; m <= 3; m++) {
+        const btn = document.getElementById(`btn-mult-${m}`);
+        if (btn) {
+          if (gameState.multiplier === m) {
+            btn.classList.add('active');
+          } else {
+            btn.classList.remove('active');
+          }
+        }
+      }
+    }
+
+    function toggleQuestionVisibility() {
+      gameState.questionVisible = !gameState.questionVisible;
+      updateModeratorQuestionControls();
+      broadcastState();
+    }
+
+    function toggleFullLogoMode() {
+      gameState.fullLogoMode = !gameState.fullLogoMode;
+      updateModeratorQuestionControls();
+      broadcastState();
+    }
+
+    function updateModeratorQuestionControls() {
+      const btnToggleQ = document.getElementById('btn-toggle-q');
+      const badgeQ = document.getElementById('mod-q-status');
+      const btnFullLogo = document.getElementById('btn-toggle-fullscreen-logo');
+
+      if (btnToggleQ && badgeQ) {
+        if (gameState.questionVisible) {
+          btnToggleQ.className = 'btn-action btn-hide-q';
+          btnToggleQ.innerHTML = '🙈 Skryť otázku (Zobraziť logo)';
+          badgeQ.className = 'q-status-badge status-visible';
+          badgeQ.innerHTML = '🟢 Otázka je ODKRYTÁ divákom';
+        } else {
+          btnToggleQ.className = 'btn-action btn-reveal-q';
+          btnToggleQ.innerHTML = '👁️ Odkryť otázku divákom';
+          badgeQ.className = 'q-status-badge status-hidden';
+          badgeQ.innerHTML = '🔒 Otázka je SKRYTÁ (diváci vidia logo)';
+        }
+      }
+
+      if (btnFullLogo) {
+        if (gameState.fullLogoMode) {
+          btnFullLogo.className = 'btn-action btn-full-logo active';
+          btnFullLogo.innerHTML = '🔙 Vypnúť celú obrazovku';
+        } else {
+          btnFullLogo.className = 'btn-action btn-full-logo';
+          btnFullLogo.innerHTML = '🌟 Celá obrazovka: Logo';
+        }
+      }
+    }
+
+    function renderModeratorAnswers() {
+      const q = questionsDB[gameState.currentQIndex];
+      const container = document.getElementById('mod-answers-list');
+      if (!container || !q) return;
+      container.innerHTML = '';
+
+      q.answers.forEach((ans, idx) => {
+        const isRevealed = gameState.revealedAnswers.includes(idx);
+        const multipliedPts = ans.points * (gameState.multiplier || 1);
+        const row = document.createElement('div');
+        row.className = `mod-answer-row ${isRevealed ? 'revealed' : ''}`;
+        row.innerHTML = `
+          <div>
+            <strong>${idx + 1}. ${ans.text}</strong> (${multipliedPts} b. ${gameState.multiplier > 1 ? `[${ans.points}x${gameState.multiplier}]` : ''})
+          </div>
+          <button class="btn-action btn-reveal" onclick="toggleAnswer(${idx})">
+            ${isRevealed ? 'Skryť' : 'Odkryť na tabuli'}
+          </button>
+        `;
+        container.appendChild(row);
+      });
+    }
+
+    function toggleAnswer(ansIndex) {
+      const q = questionsDB[gameState.currentQIndex];
+      const pos = gameState.revealedAnswers.indexOf(ansIndex);
+      const points = (q.answers[ansIndex].points || 0) * (gameState.multiplier || 1);
+
+      if (pos === -1) {
+        gameState.revealedAnswers.push(ansIndex);
+        gameState.bank += points;
+        socket.emit('game_message', { type: 'PLAY_SOUND', sound: 'correct' });
+      } else {
+        gameState.revealedAnswers.splice(pos, 1);
+        gameState.bank -= points;
+      }
+
+      renderModeratorAnswers();
+      broadcastState();
+    }
+
+    // ==========================================
+    // ČASOVAČ NA ODPOVEĎ (5 SEKÚND)
+    // ==========================================
+    function startTimer(team) {
+      if (team) {
+        gameState.activeTeamForTimer = team;
+      }
+      stopTimer(false);
+
+      gameState.timerSeconds = 5;
+      gameState.timerRunning = true;
+
+      const targetLabel = document.getElementById('mod-timer-target');
+      if (targetLabel) {
+        targetLabel.textContent = `Cieľ: ${gameState.activeTeamForTimer === 'A' ? gameState.teamAName : gameState.teamBName}`;
+      }
+
+      updateModeratorTimerDisplay();
+      
+      playTickSound();
+      socket.emit('game_message', { type: 'PLAY_SOUND', sound: 'tick' });
+      socket.emit('game_message', { type: 'START_TIMER', team: gameState.activeTeamForTimer });
+      broadcastState();
+
+      let remaining = 5;
+      timerInterval = setInterval(() => {
+        remaining--;
+        gameState.timerSeconds = remaining;
+
+        if (remaining > 0) {
+          socket.emit('game_message', { type: 'TIMER_TICK', seconds: remaining });
+        } else {
+          stopTimer(true);
+          gameState.timerSeconds = 0;
+          gameState.timerRunning = false;
+          addStrikeToTeam(gameState.activeTeamForTimer);
+        }
+
+        updateModeratorTimerDisplay();
+        broadcastState();
+      }, 1000);
+    }
+
+    function stopTimer(notify = true) {
+      if (timerInterval) {
+        clearInterval(timerInterval);
+        timerInterval = null;
+      }
+      stopTickSound();
+      gameState.timerRunning = false;
+      gameState.timerSeconds = 5;
+      updateModeratorTimerDisplay();
+      if (notify) {
+        socket.emit('game_message', { type: 'STOP_TIMER' });
+        broadcastState();
+      }
+    }
+
+    function updateModeratorTimerDisplay() {
+      const display = document.getElementById('mod-timer-display');
+      if (display) {
+        display.textContent = `${gameState.timerSeconds}.0 s`;
+        if (gameState.timerSeconds <= 2 && gameState.timerRunning) {
+          display.style.color = '#ff2a2a';
+        } else {
+          display.style.color = '#00f0ff';
+        }
+      }
+    }
+
+    // ==========================================
+    // POČÍTADLÁ X PRE TÍMY
+    // ==========================================
+    function addStrikeToTeam(team) {
+      if (team === 'A') {
+        gameState.strikesA = Math.min(3, (gameState.strikesA || 0) + 1);
+        triggerStrike(gameState.strikesA);
+      } else {
+        gameState.strikesB = Math.min(3, (gameState.strikesB || 0) + 1);
+        triggerStrike(gameState.strikesB);
+      }
+      updateModeratorStrikesUI();
+      broadcastState();
+    }
+
+    function toggleTeamStrikeClick(team, circleIdx) {
+      if (team === 'A') {
+        gameState.strikesA = (gameState.strikesA === circleIdx) ? circleIdx - 1 : circleIdx;
+      } else {
+        gameState.strikesB = (gameState.strikesB === circleIdx) ? circleIdx - 1 : circleIdx;
+      }
+      updateModeratorStrikesUI();
+      broadcastState();
+    }
+
+    function clearTeamStrikes(team) {
+      if (team === 'A') gameState.strikesA = 0;
+      else gameState.strikesB = 0;
+      updateModeratorStrikesUI();
+      broadcastState();
+    }
+
+    function clearAllStrikes() {
+      gameState.strikesA = 0;
+      gameState.strikesB = 0;
+      socket.emit('game_message', { type: 'CLEAR_STRIKES' });
+      updateModeratorStrikesUI();
+      broadcastState();
+    }
+
+    function updateModeratorStrikesUI() {
+      const dotsA = document.querySelectorAll('#mod-strikes-a .mod-strike-dot');
+      dotsA.forEach((dot, idx) => {
+        if (idx < gameState.strikesA) dot.classList.add('active');
+        else dot.classList.remove('active');
+      });
+
+      const dotsB = document.querySelectorAll('#mod-strikes-b .mod-strike-dot');
+      dotsB.forEach((dot, idx) => {
+        if (idx < gameState.strikesB) dot.classList.add('active');
+        else dot.classList.remove('active');
+      });
+
+      const labelA = document.getElementById('mod-label-teamA');
+      if (labelA) labelA.textContent = gameState.teamAName;
+      const labelB = document.getElementById('mod-label-teamB');
+      if (labelB) labelB.textContent = gameState.teamBName;
+    }
+
+    function triggerStrike(count) {
+      socket.emit('game_message', { type: 'SHOW_STRIKE', count: count });
+      socket.emit('game_message', { type: 'PLAY_SOUND', sound: 'wrong' });
+      playBuzzerSound();
+    }
+
+    function awardBank(team) {
+      if (team === 'A') {
+        gameState.scoreA += gameState.bank;
+      } else {
+        gameState.scoreB += gameState.bank;
+      }
+      gameState.bank = 0;
+      gameState.strikesA = 0;
+      gameState.strikesB = 0;
+      updateModeratorStrikesUI();
+      
+      socket.emit('game_message', { type: 'PLAY_SOUND', sound: 'win' });
+      playWinSynth();
+      broadcastState();
+    }
+
+    function resetBank() {
+      gameState.bank = 0;
+      broadcastState();
+    }
+
+    function resetScores() {
+      if (confirm('Naozaj chcete vynulovať skóre oboch tímov na 0 : 0?')) {
+        gameState.scoreA = 0;
+        gameState.scoreB = 0;
+        broadcastState();
+      }
+    }
+
+    function updateTeamNames() {
+      gameState.teamAName = document.getElementById('input-teamA').value || "TÍM A";
+      gameState.teamBName = document.getElementById('input-teamB').value || "TÍM B";
+      updateModeratorStrikesUI();
+      broadcastState();
+    }
+
+    function saveLogoFileName() {
+      const input = document.getElementById('input-logo-file');
+      if (input && input.value.trim()) {
+        gameState.logoFile = input.value.trim();
+        localStorage.setItem('5p5_logo_file', gameState.logoFile);
+        checkModeratorLogoPreview();
+        broadcastState();
+      }
+    }
+
+    function checkModeratorLogoPreview() {
+      const tag = document.getElementById('mod-logo-status-tag');
+      const testImg = new Image();
+      testImg.src = gameState.logoFile;
+      testImg.onload = () => {
+        if (tag) {
+          tag.className = 'logo-status-tag ok';
+          tag.textContent = `✅ Nájdený: ${gameState.logoFile}`;
+        }
+      };
+      testImg.onerror = () => {
+        if (tag) {
+          tag.className = 'logo-status-tag warn';
+          tag.textContent = `⚠️ Súbor nenájdený (grafické logo)`;
+        }
+      };
+    }
+
+    function setupModeratorKeyboardShortcuts() {
+      window.addEventListener('keydown', (e) => {
+        if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.tagName === 'SELECT') {
+          return;
+        }
+        if (e.key === 'q' || e.key === 'Q' || e.key === 'o' || e.key === 'O') {
+          e.preventDefault();
+          toggleQuestionVisibility();
+        }
+        if (e.key === 't' || e.key === 'T') {
+          e.preventDefault();
+          startTimer(gameState.activeTeamForTimer || 'A');
+        }
+        if (e.key === '1') triggerStrike(1);
+        if (e.key === '2') triggerStrike(2);
+        if (e.key === '3') triggerStrike(3);
+        if (e.key === 'Escape' || e.key === 'c' || e.key === 'C') clearAllStrikes();
+      });
+    }
+
+    function updateModeratorHUD() {
+      const q = questionsDB[gameState.currentQIndex];
+
+      const hudBankVal = document.getElementById('mod-hud-bank-val');
+      if (hudBankVal) hudBankVal.textContent = gameState.bank;
+
+      const hudMult = document.getElementById('mod-hud-mult');
+      if (hudMult) {
+        hudMult.className = `multiplier-tag mult-${gameState.multiplier}x`;
+        hudMult.textContent = `${gameState.multiplier}x BODY`;
+      }
+
+      let sum = 0;
+      if (q && q.answers) {
+        gameState.revealedAnswers.forEach(idx => {
+          if (q.answers[idx]) {
+            sum += (q.answers[idx].points || 0) * (gameState.multiplier || 1);
+          }
+        });
+      }
+      const hudRoundSum = document.getElementById('mod-hud-round-sum-val');
+      if (hudRoundSum) hudRoundSum.textContent = `${sum} b.`;
+
+      const hudQPrev = document.getElementById('mod-hud-q-preview');
+      if (hudQPrev && q) hudQPrev.textContent = `Otázka ${gameState.currentQIndex + 1}: ${q.text}`;
+
+      const hudTeamA = document.getElementById('mod-hud-teamA-name');
+      if (hudTeamA) hudTeamA.textContent = gameState.teamAName;
+      const hudScoreA = document.getElementById('mod-hud-scoreA-val');
+      if (hudScoreA) hudScoreA.textContent = gameState.scoreA;
+
+      const hudTeamB = document.getElementById('mod-hud-teamB-name');
+      if (hudTeamB) hudTeamB.textContent = gameState.teamBName;
+      const hudScoreB = document.getElementById('mod-hud-scoreB-val');
+      if (hudScoreB) hudScoreB.textContent = gameState.scoreB;
+    }
+
+    function broadcastState() {
+      updateModeratorHUD();
+      socket.emit('game_message', {
+        type: 'UPDATE_GAME_STATE',
+        state: gameState,
+        questions: questionsDB
+      });
+    }
+
+    // ==========================================
+    // EDITOR VLASTNÝCH OTÁZOK
+    // ==========================================
+    let editorMode = 'new';
+
+    function openQuestionEditor(mode) {
+      editorMode = mode;
+      const modal = document.getElementById('q-editor-modal');
+      const title = document.getElementById('q-editor-title');
+      const qInput = document.getElementById('editor-q-text');
+      const container = document.getElementById('editor-answers-container');
+
+      container.innerHTML = '';
+      if (mode === 'edit') {
+        title.textContent = `✏️ Upraviť otázku č. ${gameState.currentQIndex + 1}`;
+        const currQ = questionsDB[gameState.currentQIndex];
+        qInput.value = currQ ? currQ.text : '';
+        if (currQ && currQ.answers) {
+          currQ.answers.forEach(ans => addEditorAnswerRow(ans.text, ans.points));
+        }
+      } else {
+        title.textContent = '➕ Pridať novú otázku';
+        qInput.value = '';
+        for (let i = 0; i < 4; i++) {
+          addEditorAnswerRow('', '');
+        }
+      }
+      updateEditorTotalPoints();
+      modal.style.display = 'flex';
+    }
+
+    function closeQuestionEditor() {
+      document.getElementById('q-editor-modal').style.display = 'none';
+    }
+
+    function addEditorAnswerRow(text = '', points = '') {
+      const container = document.getElementById('editor-answers-container');
+      const count = container.children.length;
+      if (count >= 8) {
+        alert('Maximálny počet odpovedí pre jednu otázku je 8.');
+        return;
+      }
+      const row = document.createElement('div');
+      row.className = 'editor-ans-row';
+      row.innerHTML = `
+        <span style="font-weight:900; color:#a0aec0; width: 22px;">${count + 1}.</span>
+        <input type="text" class="editor-ans-text" placeholder="Znenie odpovede" value="${text}">
+        <input type="number" class="editor-ans-points" placeholder="Body" value="${points}" oninput="updateEditorTotalPoints()">
+        <button type="button" class="btn-del-row" onclick="removeEditorAnswerRow(this)">✖</button>
+      `;
+      container.appendChild(row);
+      updateEditorTotalPoints();
+    }
+
+    function removeEditorAnswerRow(btn) {
+      const row = btn.parentElement;
+      row.remove();
+      const container = document.getElementById('editor-answers-container');
+      Array.from(container.children).forEach((r, idx) => {
+        r.querySelector('span').textContent = `${idx + 1}.`;
+      });
+      updateEditorTotalPoints();
+    }
+
+    function updateEditorTotalPoints() {
+      const pointsInputs = document.querySelectorAll('.editor-ans-points');
+      let sum = 0;
+      pointsInputs.forEach(inp => {
+        sum += parseInt(inp.value) || 0;
+      });
+      const badge = document.getElementById('editor-total-points');
+      if (badge) badge.textContent = `Suma bodov: ${sum} b.`;
+    }
+
+    function saveQuestionFromEditor() {
+      const qInput = document.getElementById('editor-q-text');
+      const text = qInput.value.trim();
+      if (!text) {
+        alert('Zadajte prosím znenie otázky.');
+        return;
+      }
+
+      const rows = document.querySelectorAll('#editor-answers-container .editor-ans-row');
+      const answers = [];
+      rows.forEach(r => {
+        const t = r.querySelector('.editor-ans-text').value.trim();
+        const p = parseInt(r.querySelector('.editor-ans-points').value) || 0;
+        if (t) {
+          answers.push({ text: t, points: p });
+        }
+      });
+
+      if (answers.length < 2) {
+        alert('Otázka musí mať aspoň 2 vyplnené odpovede.');
+        return;
+      }
+
+      const newQ = { text, answers };
+      if (editorMode === 'edit') {
+        questionsDB[gameState.currentQIndex] = newQ;
+      } else {
+        questionsDB.push(newQ);
+        gameState.currentQIndex = questionsDB.length - 1;
+      }
+
+      localStorage.setItem('5p5_custom_questions', JSON.stringify(questionsDB));
+      refreshQuestionSelectDropdown();
+      changeQuestion(gameState.currentQIndex);
+      closeQuestionEditor();
+    }
+
+    function deleteCurrentQuestion() {
+      if (questionsDB.length <= 1) {
+        alert('V hre musí zostať aspoň jedna otázka.');
+        return;
+      }
+      if (confirm(`Naozaj chcete zmazať otázku: "${questionsDB[gameState.currentQIndex].text}"?`)) {
+        questionsDB.splice(gameState.currentQIndex, 1);
+        localStorage.setItem('5p5_custom_questions', JSON.stringify(questionsDB));
+        gameState.currentQIndex = Math.max(0, gameState.currentQIndex - 1);
+        refreshQuestionSelectDropdown();
+        changeQuestion(gameState.currentQIndex);
+      }
+    }
+
+    function resetDefaultQuestions() {
+      if (confirm('Chcete obnoviť pôvodné predvolené otázky? Vaše vlastné otázky budú nahradené.')) {
+        questionsDB = JSON.parse(JSON.stringify(defaultQuestionsDB));
+        localStorage.removeItem('5p5_custom_questions');
+        gameState.currentQIndex = 0;
+        refreshQuestionSelectDropdown();
+        changeQuestion(0);
+      }
+    }
+
+    // ==========================================
+    // LOGIKA PRE DIVÁKOV
+    // ==========================================
+    const candidateExtensions = ['logo.png', 'logo.jpg', 'logo.jpeg', 'logo.webp', 'logo.svg'];
+    let candidateIndex = 0;
+
+    function handleLogoImgError(img) {
+      candidateIndex++;
+      if (candidateIndex < candidateExtensions.length) {
+        img.src = candidateExtensions[candidateIndex];
+      } else {
+        img.style.display = 'none';
+        const fallback = document.getElementById('spec-logo-fallback');
+        if (fallback) fallback.style.display = 'flex';
+      }
+    }
+
+    function handleLogoImgLoad(img) {
+      img.style.display = 'block';
+      const fallback = document.getElementById('spec-logo-fallback');
+      if (fallback) fallback.style.display = 'none';
+    }
+
+    let fullCandidateIndex = 0;
+    function handleFullLogoImgError(img) {
+      fullCandidateIndex++;
+      if (fullCandidateIndex < candidateExtensions.length) {
+        img.src = candidateExtensions[fullCandidateIndex];
+      } else {
+        img.style.display = 'none';
+        const fallback = document.getElementById('spec-full-logo-fallback');
+        if (fallback) fallback.style.display = 'flex';
+      }
+    }
+
+    function handleFullLogoImgLoad(img) {
+      img.style.display = 'block';
+      const fallback = document.getElementById('spec-full-logo-fallback');
+      if (fallback) fallback.style.display = 'none';
+    }
+
+    function initSpectator() {
+      document.getElementById('launcher').style.display = 'none';
+      document.getElementById('spectator-view').style.display = 'flex';
+
+      socket.emit('game_message', { type: 'REQUEST_STATE' });
+
+      // Banner na aktiváciu zvukov
+      const audioBanner = document.createElement('div');
+      audioBanner.id = 'audio-unlock-banner';
+      audioBanner.style.cssText = `
+        position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
+        background: rgba(10, 14, 23, 0.95); z-index: 10000; display: flex;
+        flex-direction: column; align-items: center; justify-content: center;
+      `;
+      audioBanner.innerHTML = `
+        <button style="
+          padding: 25px 50px; font-size: 1.8rem; font-weight: 900; background: var(--gold-gradient);
+          color: #000; border: none; border-radius: 15px; cursor: pointer; box-shadow: 0 0 30px rgba(255,215,0,0.5);
+        ">🔊 SPUSTIŤ HRU A AKTIVOVAŤ ZVUK</button>
+      `;
+      document.body.appendChild(audioBanner);
+
+      audioBanner.addEventListener('click', () => {
+        // Prednačítanie zvukov
+        Object.values(sounds).forEach(audio => {
+          audio.load();
+          audio.muted = true;
+          const playPromise = audio.play();
+          if (playPromise !== undefined) {
+            playPromise.then(() => {
+              audio.pause();
+              audio.currentTime = 0;
+              audio.muted = false;
+            }).catch(() => {
+              audio.muted = false;
+            });
+          }
+        });
+        audioBanner.remove();
+      });
+
+      socket.on('game_message', (msg) => {
+        if (msg.type === 'UPDATE_GAME_STATE') {
+          if (msg.questions) {
+            questionsDB = msg.questions;
+          }
+          updateSpectatorUI(msg.state);
+        } else if (msg.type === 'SHOW_STRIKE') {
+          renderStrikes(msg.count);
+        } else if (msg.type === 'CLEAR_STRIKES') {
+          document.getElementById('strike-overlay').style.display = 'none';
+        } else if (msg.type === 'PLAY_SOUND') {
+          playSound(msg.sound);
+        } else if (msg.type === 'STOP_TIMER') {
+          stopTickSound();
+        }
+      });
+    }
+
+    function updateSpectatorUI(state) {
+      gameState = state;
+      const q = questionsDB[state.currentQIndex] || questionsDB[0];
+
+      document.getElementById('spec-teamA-name').textContent = state.teamAName;
+      document.getElementById('spec-teamB-name').textContent = state.teamBName;
+      document.getElementById('spec-teamA-score').textContent = state.scoreA;
+      document.getElementById('spec-teamB-score').textContent = state.scoreB;
+
+      const specBankEl = document.getElementById('spec-bank');
+      if (specBankEl) specBankEl.textContent = state.bank;
+
+      const multTag = document.getElementById('spec-multiplier-tag');
+      if (multTag) {
+        if (state.multiplier > 1) {
+          multTag.style.display = 'inline-block';
+          multTag.className = `multiplier-tag mult-${state.multiplier}x`;
+          multTag.textContent = `${state.multiplier}x BODY`;
+        } else {
+          multTag.style.display = 'none';
+        }
+      }
+
+      const timerWidget = document.getElementById('spec-timer-container');
+      const timerTeam = document.getElementById('spec-timer-team');
+      const timerNum = document.getElementById('spec-timer-num');
+      const timerBar = document.getElementById('spec-timer-bar');
+
+      if (timerWidget && timerNum && timerBar) {
+        if (state.timerRunning || (state.timerSeconds < 5 && state.timerSeconds > 0)) {
+          timerWidget.style.display = 'flex';
+          timerTeam.textContent = state.activeTeamForTimer === 'A' ? state.teamAName : state.teamBName;
+          timerNum.textContent = state.timerSeconds;
+          timerBar.style.width = `${(state.timerSeconds / 5) * 100}%`;
+          if (state.timerSeconds <= 2) {
+            timerNum.classList.add('warning');
+          } else {
+            timerNum.classList.remove('warning');
+          }
+        } else {
+          timerWidget.style.display = 'none';
+        }
+      }
+
+      const circlesA = document.querySelectorAll('#spec-strikes-a .strike-circle');
+      circlesA.forEach((c, idx) => {
+        if (idx < (state.strikesA || 0)) c.classList.add('active');
+        else c.classList.remove('active');
+      });
+
+      const circlesB = document.querySelectorAll('#spec-strikes-b .strike-circle');
+      circlesB.forEach((c, idx) => {
+        if (idx < (state.strikesB || 0)) c.classList.add('active');
+        else c.classList.remove('active');
+      });
+
+      const questionTextEl = document.getElementById('spec-question-text');
+      const questionLogoWrapEl = document.getElementById('spec-question-logo-wrap');
+      const specQuestionBox = document.getElementById('spec-question-box');
+      const specLogoImg = document.getElementById('spec-logo-img');
+
+      if (state.questionVisible) {
+        questionTextEl.textContent = q ? q.text : '';
+        questionTextEl.style.display = 'block';
+        questionLogoWrapEl.style.display = 'none';
+        specQuestionBox.classList.remove('showing-logo');
+      } else {
+        questionTextEl.style.display = 'none';
+        questionLogoWrapEl.style.display = 'flex';
+        specQuestionBox.classList.add('showing-logo');
+
+        if (state.logoFile && !specLogoImg.src.endsWith(state.logoFile)) {
+          candidateIndex = 0;
+          specLogoImg.src = state.logoFile;
+        }
+      }
+
+const fullLogoOverlay = document.getElementById('spec-full-logo-overlay');
+const specFullLogoImg = document.getElementById('spec-full-logo-img');
+
+if (fullLogoOverlay) {
+  const isFullLogoActive = state.fullLogoMode;
+  fullLogoOverlay.style.display = isFullLogoActive ? 'flex' : 'none';
+
+  if (isFullLogoActive) {
+    // Ak sa zobrazilo logo na celú obrazovku, pustíme znelku v slučke
+    if (sounds.theme.paused) {
+      sounds.theme.currentTime = 0;
+      sounds.theme.play().catch(e => console.warn("Pravidlá prehliadača zablokovali znelku:", e));
+    }
+
+    if (state.logoFile && specFullLogoImg && !specFullLogoImg.src.endsWith(state.logoFile)) {
+      fullCandidateIndex = 0;
+      specFullLogoImg.src = state.logoFile;
+    }
+  } else {
+    // Ak sa logo skrylo, znelku pozastavíme a resetujeme čas
+    if (!sounds.theme.paused) {
+      sounds.theme.pause();
+      sounds.theme.currentTime = 0;
+    }
+  }
+}
+
+      const grid = document.getElementById('spec-grid');
+      grid.innerHTML = '';
+      let roundRevealedSum = 0;
+
+      if (q && q.answers) {
+        q.answers.forEach((ans, idx) => {
+          const isRevealed = state.revealedAnswers.includes(idx);
+          const multipliedPts = ans.points * (state.multiplier || 1);
+          if (isRevealed) {
+            roundRevealedSum += multipliedPts;
+          }
+
+          const container = document.createElement('div');
+          container.className = 'card-container';
+
+          container.innerHTML = `
+            <div class="card ${isRevealed ? 'flipped' : ''}">
+              <div class="card-face card-front">
+                <span class="card-front-num">${idx + 1}.</span>
+                <span class="card-front-dots">● ● ● ● ●</span>
+              </div>
+              <div class="card-face card-back">
+                <div class="card-back-text">
+                  <span>${idx + 1}.</span>
+                  <span>${ans.text}</span>
+                </div>
+                <div class="card-back-points">${multipliedPts}</div>
+              </div>
+            </div>
+          `;
+          grid.appendChild(container);
+        });
+      }
+
+      const sumBox = document.getElementById('spec-round-sum');
+      if (sumBox) {
+        sumBox.textContent = roundRevealedSum;
+      }
+    }
+
+    function renderStrikes(count) {
+      const overlay = document.getElementById('strike-overlay');
+      overlay.innerHTML = '';
+      for (let i = 0; i < count; i++) {
+        const x = document.createElement('div');
+        x.className = 'big-x';
+        x.textContent = '✖';
+        overlay.appendChild(x);
+      }
+      overlay.style.display = 'flex';
+
+      setTimeout(() => {
+        overlay.style.display = 'none';
+      }, 1800);
+    }
+
+    // FUNKCIE PRE PREHRÁVANIE ZVUKOV
+    function playSound(type) {
+      if (sounds[type]) {
+        try {
+          sounds[type].pause();
+          sounds[type].currentTime = 0;
+          const playPromise = sounds[type].play();
+          if (playPromise !== undefined) {
+            playPromise.catch(e => console.warn("Chyba prehrávania zvuku:", e));
+          }
+        } catch(e) {
+          console.warn("Výnimka zvuku:", e);
+        }
+      }
+    }
+
+    function playTickSound() {
+      playSound('tick');
+    }
+
+    function stopTickSound() {
+      if (sounds.tick) {
+        sounds.tick.pause();
+        sounds.tick.currentTime = 0;
+      }
+    }
+
+    function playBuzzerSound() {
+      playSound('wrong');
+    }
+
+    function playWinSynth() {
+      playSound('win');
+    }
+  </script>
+</body>
+</html>
