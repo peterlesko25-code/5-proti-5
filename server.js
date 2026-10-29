@@ -5,46 +5,73 @@ const path = require('path');
 
 const app = express();
 const server = http.createServer(app);
-const io = new Server(server);
-
-// Sprístupnenie súborov zo zložky public
-app.use(express.static(path.join(__dirname, 'public')));
-
-let currentGameState = null;
-let currentQuestionsDB = null;
-
-io.on('connection', (socket) => {
-    console.log('🔌 Zariadenie pripojené:', socket.id);
-
-    // Odošle aktuálny stav novopripojenému zariadeniu
-    if (currentGameState) {
-        socket.emit('game_message', {
-            type: 'UPDATE_GAME_STATE',
-            state: currentGameState,
-            questions: currentQuestionsDB
-        });
-    }
-
-    // Preposielanie správ medzi mobilom a PC
-    socket.on('game_message', (data) => {
-        if (data.type === 'UPDATE_GAME_STATE') {
-            currentGameState = data.state;
-            if (data.questions) currentQuestionsDB = data.questions;
-        }
-        socket.broadcast.emit('game_message', data);
-    });
-
-    socket.on('disconnect', () => {
-        console.log('❌ Zariadenie odpojené:', socket.id);
-    });
+const io = new Server(server, {
+  cors: {
+    origin: "*",
+    methods: ["GET", "POST"]
+  }
 });
 
-const PORT = 3000;
+// Sprístupnenie statických súborov zo zložky 'public'
+app.use(express.static(path.join(__dirname, 'public')));
+
+// Objekt na uchovávanie stavu hier pre jednotlivé miestnosti (roomId)
+const roomStates = {};
+
+io.on('connection', (socket) => {
+  console.log('🔌 Nové zariadenie sa pripojilo:', socket.id);
+
+  // Zariadenie sa pripojí do konkrétnej miestnosti
+  socket.on('join_room', (roomId) => {
+    // Opustenie predchádzajúcej miestnosti, ak v nejakej zariadenie bolo
+    if (socket.roomId) {
+      socket.leave(socket.roomId);
+    }
+
+    socket.join(roomId);
+    socket.roomId = roomId;
+    console.log(`👤 Zariadenie ${socket.id} vstúpilo do miestnosti: [ ${roomId} ]`);
+
+    // Ak už v danej miestnosti beží hra, pošleme jej aktuálny stav novopripojenému zariadeniu
+    if (roomStates[roomId]) {
+      socket.emit('game_message', {
+        type: 'UPDATE_GAME_STATE',
+        state: roomStates[roomId].state,
+        questions: roomStates[roomId].questions
+      });
+    }
+  });
+
+  // Preposielanie správ výhradne v rámci rovnakej miestnosti
+  socket.on('game_message', (data) => {
+    const roomId = socket.roomId;
+    if (!roomId) return;
+
+    if (!roomStates[roomId]) {
+      roomStates[roomId] = {};
+    }
+
+    // Aktualizácia stavu miestnosti na serveri
+    if (data.type === 'UPDATE_GAME_STATE') {
+      roomStates[roomId].state = data.state;
+      if (data.questions) {
+        roomStates[roomId].questions = data.questions;
+      }
+    }
+
+    // Preposlanie správy všetkým OSTATNÝM zariadeniam v rovnakej miestnosti
+    socket.to(roomId).emit('game_message', data);
+  });
+
+  socket.on('disconnect', () => {
+    console.log('❌ Zariadenie sa odpojilo:', socket.id);
+  });
+});
+
+// Dynamický port pre cloudové služby (Render.com) alebo 3000 pre lokálne spustenie
+const PORT = process.env.PORT || 3000;
 server.listen(PORT, '0.0.0.0', () => {
-    console.log(`\n==================================================`);
-    console.log(`🚀 SERVER BEŽÍ!`);
-    console.log(`--------------------------------------------------`);
-    console.log(`📺 Na PC (projektor) otvorte: http://localhost:${PORT}?role=divaci`);
-    console.log(`🎙️ Na mobile (na rovnakej Wi-Fi) otvorte vašu IP s portom 3000`);
-    console.log(`==================================================\n`);
+  console.log(`\n==================================================`);
+  console.log(`🚀 5 PROTI 5 SERVER BEŽÍ NA PORTE ${PORT}`);
+  console.log(`==================================================\n`);
 });
