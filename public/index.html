@@ -806,7 +806,7 @@
       wrong: new Audio('chyba.mp3'),
       tick: new Audio('tik.mp3'),
       win: new Audio('vyhra.mp3'),
-     // theme: new Audio('znelka.mp3') 
+      theme: new Audio('znelka.mp3') 
     };
     sounds.theme.loop = true;
     let timerInterval = null;
@@ -1603,11 +1603,11 @@ if (fullLogoOverlay) {
   const isFullLogoActive = state.fullLogoMode;
   fullLogoOverlay.style.display = isFullLogoActive ? 'flex' : 'none';
 
-  if (isFullLogoActive) {
+  //if (isFullLogoActive) {
     // Ak sa zobrazilo logo na celú obrazovku, pustíme znelku v slučke
-    if (sounds.theme.paused) {
-      sounds.theme.currentTime = 0;
-      sounds.theme.play().catch(e => console.warn("Pravidlá prehliadača zablokovali znelku:", e));
+  //  if (sounds.theme.paused) {
+  //    sounds.theme.currentTime = 0;
+  //    sounds.theme.play().catch(e => console.warn("Pravidlá prehliadača zablokovali znelku:", e));
     }
 
     if (state.logoFile && specFullLogoImg && !specFullLogoImg.src.endsWith(state.logoFile)) {
