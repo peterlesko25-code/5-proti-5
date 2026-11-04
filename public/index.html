@@ -1,7 +1,6 @@
 <!DOCTYPE html>
 <html lang="sk">
 <head>
-  <script src="/socket.io/socket.io.js"></script>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>5 proti 5 - Interaktívna Hra</title>
@@ -383,7 +382,7 @@
     <div class="launcher-btn-group">
       <button class="btn-launch btn-launch-mod" onclick="launchMode('moderator')">
         <span>🎙️ MODERAČNÝ PANEL</span>
-        <small style="font-weight: 400; font-size: 0.9rem;">(Pre monitor moderátora / mobil)</small>
+        <small style="font-weight: 400; font-size: 0.9rem;">(Pre monitor moderátora)</small>
       </button>
       <button class="btn-launch btn-launch-divaci" onclick="launchMode('divaci')">
         <span>📺 PROJEKTOR / DIVÁCI</span>
@@ -495,7 +494,7 @@
     <div class="mod-header">
       <h2>🎙️ Moderačný panel – 5 proti 5</h2>
       <div>
-        <span class="status-badge" id="sync-status">🟢 Pripojené cez Socket.io</span>
+        <span class="status-badge" id="sync-status">🟢 Pripojené cez BroadcastChannel</span>
         <button class="btn-action btn-control" onclick="openSpectatorWindow()" style="margin-left: 10px;">📺 Otvoriť okno divákov</button>
       </div>
     </div>
@@ -664,7 +663,7 @@
         <div class="mod-card">
           <div class="mod-title">🖼️ Logo relácie pre divákov</div>
           <p style="font-size: 0.85rem; color: #a0aec0; margin-bottom: 12px; line-height: 1.4;">
-            Obrázok loga uložte priamo do priečinka public (napr. <code>logo.png</code> alebo <code>logo.jpg</code>).
+            Obrázok loga uložte priamo do priečinka hry (napr. <code>logo.png</code> alebo <code>logo.jpg</code>).
           </p>
           <div style="display: flex; gap: 8px; margin-bottom: 10px;">
             <input type="text" id="input-logo-file" value="logo.png" class="q-select" style="margin-bottom: 0;" placeholder="Názov súboru (napr. logo.png)">
@@ -713,51 +712,54 @@
       {
         text: "Aké je pre teba najkrajšie oslovenie Boha?",
         answers: [
-          { text: "Otec / Ocko / Otecko", points: 52 },
-          { text: "Boh", points: 17 },
-          { text: "Kráľ", points: 12 },
-          { text: "Pán", points: 10 },
-          { text: "Láska", points: 9 },
+          { text: "Otec", points: 42 },
+          { text: "Abba", points: 28 },
+          { text: "Kráľ / Pán", points: 15 },
+          { text: "Láska", points: 8 },
+          { text: "Jahve", points: 4 },
+          { text: "Emanuel", points: 3 }
         ]
       },
       {
         text: "Akej biblickej postave by si sa chcel najviac podobať?",
         answers: [
-          { text: "Ježiš", points: 30 },
-          { text: "Bohorodička / Panna Mária", points: 24 },
-          { text: "Peter", points: 17 },
-          { text: "Mária Magdaléna", points: 15 },
-          { text: "Šalamún", points: 14 }
+          { text: "Mária", points: 55 },
+          { text: "Dávid", points: 18 },
+          { text: "Abrahám", points: 14 },
+          { text: "Jozef", points: 8 },
+          { text: "Rút", points: 5 }
         ]
       },
       {
         text: "Aká je tvoja obľúbená modlitba?",
         answers: [
-          { text: "Ježišova modlitba", points: 26 },
-          { text: "Otčenáš", points: 22 },
-          { text: "Raduj sa / Zdravas Mária", points: 21 },
-          { text: "Ruženec", points: 18 },
-          { text: "Kráľu nebeský", points: 13 }
+          { text: "Otčenáš", points: 48 },
+          { text: "Radujsa", points: 25 },
+          { text: "Ježišova modlitba", points: 14 },
+          { text: "Anjel Pána", points: 8 },
+          { text: "Kráľu nebeský", points: 5 }
         ]
       },
       {
         text: "Miesto kde sa najradšej stretávaš s Bohom?",
         answers: [
-          { text: "Chrám / Kostol", points: 42 },
-          { text: "Príroda", points: 20 },
-          { text: "Doma / V izbe", points: 15 },
-          { text: "Kaplnka", points: 13 },
-          { text: "Všade", points: 10 }
+          { text: "Chrám", points: 42 },
+          { text: "Jusková", points: 28 },
+          { text: "Doma", points: 15 },
+          { text: "Medžugorie", points: 8 },
+          { text: "Kaplnka", points: 4 },
+          { text: "Príroda", points: 3 }
         ]
       },
       {
         text: "Aké je tvoje obľúbené podobenstvo?",
         answers: [
           { text: "O márnotratnom synovi", points: 42 },
-          { text: "O rozsievačovi", points: 18 },
-          { text: "O stratenej ovečke", points: 16 },
-          { text: "O vinici", points: 13 },
-          { text: "O horčičnom zrnku", points: 11 },
+          { text: "O perle", points: 28 },
+          { text: "O milosrdnom samaritánovi", points: 15 },
+          { text: "O rozsievačovi", points: 8 },
+          { text: "O 10 pannách", points: 4 },
+          { text: "O stratenej ovečke", points: 3 }
         ]
       }
     ];
@@ -797,34 +799,22 @@
       timerRunning: false
     };
 
-    // INICIALIZÁCIA SOCKET.IO NAMIESTO BROADCASTCHANNEL
-    const socket = io();
+    // BROADCAST CHANNEL
+    const channel = new BroadcastChannel('5_proti_5_channel');
 
     // NAČÍTANIE AUDIO SÚBOROV
     const sounds = {
       correct: new Audio('spravne.mp3'),
       wrong: new Audio('chyba.mp3'),
       tick: new Audio('tik.mp3'),
-      win: new Audio('vyhra.mp3'),
-      theme: new Audio('znelka.mp3') 
+      win: new Audio('vyhra.mp3')
     };
-    sounds.theme.loop = true;
+
     let timerInterval = null;
 
-    // URČENIE REŽIMU A MIESTNOSTI Z URL
+    // URČENIE REŽIMU Z URL
     const urlParams = new URLSearchParams(window.location.search);
     const roleParam = urlParams.get('role');
-
-    // Získanie kódu relácie (miestnosti)
-    let roomIdParam = urlParams.get('room');
-    if (!roomIdParam && (roleParam === 'moderator' || roleParam === 'divaci')) {
-        roomIdParam = prompt("Zadajte kód relácie/miestnosti (napr. 100):", "100") || "default";
-    }
-
-    // Pripojenie do konkrétnej miestnosti na serveri
-    if (roomIdParam) {
-        socket.emit('join_room', roomIdParam);
-    }
 
     if (roleParam === 'moderator') {
       initModerator();
@@ -860,11 +850,11 @@
       checkModeratorLogoPreview();
       setupModeratorKeyboardShortcuts();
 
-      socket.on('game_message', (msg) => {
-        if (msg && msg.type === 'REQUEST_STATE') {
+      channel.onmessage = (event) => {
+        if (event.data && event.data.type === 'REQUEST_STATE') {
           broadcastState();
         }
-      });
+      };
 
       setInterval(() => {
         broadcastState();
@@ -944,6 +934,9 @@
 
     function toggleFullLogoMode() {
       gameState.fullLogoMode = !gameState.fullLogoMode;
+      if (gameState.fullLogoMode) {
+        stopTimer(true);
+      }
       updateModeratorQuestionControls();
       broadcastState();
     }
@@ -1009,7 +1002,7 @@
       if (pos === -1) {
         gameState.revealedAnswers.push(ansIndex);
         gameState.bank += points;
-        socket.emit('game_message', { type: 'PLAY_SOUND', sound: 'correct' });
+        channel.postMessage({ type: 'PLAY_SOUND', sound: 'correct' });
       } else {
         gameState.revealedAnswers.splice(pos, 1);
         gameState.bank -= points;
@@ -1039,8 +1032,8 @@
       updateModeratorTimerDisplay();
       
       playTickSound();
-      socket.emit('game_message', { type: 'PLAY_SOUND', sound: 'tick' });
-      socket.emit('game_message', { type: 'START_TIMER', team: gameState.activeTeamForTimer });
+      channel.postMessage({ type: 'PLAY_SOUND', sound: 'tick' });
+      channel.postMessage({ type: 'START_TIMER', team: gameState.activeTeamForTimer });
       broadcastState();
 
       let remaining = 5;
@@ -1049,7 +1042,7 @@
         gameState.timerSeconds = remaining;
 
         if (remaining > 0) {
-          socket.emit('game_message', { type: 'TIMER_TICK', seconds: remaining });
+          channel.postMessage({ type: 'TIMER_TICK', seconds: remaining });
         } else {
           stopTimer(true);
           gameState.timerSeconds = 0;
@@ -1072,7 +1065,7 @@
       gameState.timerSeconds = 5;
       updateModeratorTimerDisplay();
       if (notify) {
-        socket.emit('game_message', { type: 'STOP_TIMER' });
+        channel.postMessage({ type: 'STOP_TIMER' });
         broadcastState();
       }
     }
@@ -1124,7 +1117,7 @@
     function clearAllStrikes() {
       gameState.strikesA = 0;
       gameState.strikesB = 0;
-      socket.emit('game_message', { type: 'CLEAR_STRIKES' });
+      channel.postMessage({ type: 'CLEAR_STRIKES' });
       updateModeratorStrikesUI();
       broadcastState();
     }
@@ -1149,8 +1142,8 @@
     }
 
     function triggerStrike(count) {
-      socket.emit('game_message', { type: 'SHOW_STRIKE', count: count });
-      socket.emit('game_message', { type: 'PLAY_SOUND', sound: 'wrong' });
+      channel.postMessage({ type: 'SHOW_STRIKE', count: count });
+      channel.postMessage({ type: 'PLAY_SOUND', sound: 'wrong' });
       playBuzzerSound();
     }
 
@@ -1165,7 +1158,7 @@
       gameState.strikesB = 0;
       updateModeratorStrikesUI();
       
-      socket.emit('game_message', { type: 'PLAY_SOUND', sound: 'win' });
+      channel.postMessage({ type: 'PLAY_SOUND', sound: 'win' });
       playWinSynth();
       broadcastState();
     }
@@ -1277,7 +1270,7 @@
 
     function broadcastState() {
       updateModeratorHUD();
-      socket.emit('game_message', {
+      channel.postMessage({
         type: 'UPDATE_GAME_STATE',
         state: gameState,
         questions: questionsDB
@@ -1464,9 +1457,8 @@
       document.getElementById('launcher').style.display = 'none';
       document.getElementById('spectator-view').style.display = 'flex';
 
-      socket.emit('game_message', { type: 'REQUEST_STATE' });
+      channel.postMessage({ type: 'REQUEST_STATE' });
 
-      // Banner na aktiváciu zvukov
       const audioBanner = document.createElement('div');
       audioBanner.id = 'audio-unlock-banner';
       audioBanner.style.cssText = `
@@ -1483,7 +1475,6 @@
       document.body.appendChild(audioBanner);
 
       audioBanner.addEventListener('click', () => {
-        // Prednačítanie zvukov
         Object.values(sounds).forEach(audio => {
           audio.load();
           audio.muted = true;
@@ -1501,7 +1492,9 @@
         audioBanner.remove();
       });
 
-      socket.on('game_message', (msg) => {
+      channel.onmessage = (event) => {
+        const msg = event.data;
+
         if (msg.type === 'UPDATE_GAME_STATE') {
           if (msg.questions) {
             questionsDB = msg.questions;
@@ -1516,7 +1509,7 @@
         } else if (msg.type === 'STOP_TIMER') {
           stopTickSound();
         }
-      });
+      };
     }
 
     function updateSpectatorUI(state) {
@@ -1527,9 +1520,6 @@
       document.getElementById('spec-teamB-name').textContent = state.teamBName;
       document.getElementById('spec-teamA-score').textContent = state.scoreA;
       document.getElementById('spec-teamB-score').textContent = state.scoreB;
-
-      const specBankEl = document.getElementById('spec-bank');
-      if (specBankEl) specBankEl.textContent = state.bank;
 
       const multTag = document.getElementById('spec-multiplier-tag');
       if (multTag) {
@@ -1596,32 +1586,17 @@
         }
       }
 
-const fullLogoOverlay = document.getElementById('spec-full-logo-overlay');
-const specFullLogoImg = document.getElementById('spec-full-logo-img');
+      const fullLogoOverlay = document.getElementById('spec-full-logo-overlay');
+      const specFullLogoImg = document.getElementById('spec-full-logo-img');
+      if (fullLogoOverlay) {
+        const isFullLogoActive = state.fullLogoMode;
+        fullLogoOverlay.style.display = isFullLogoActive ? 'flex' : 'none';
 
-if (fullLogoOverlay) {
-  const isFullLogoActive = state.fullLogoMode;
-  fullLogoOverlay.style.display = isFullLogoActive ? 'flex' : 'none';
-
-  if (isFullLogoActive) {
-    // Ak sa zobrazilo logo na celú obrazovku, pustíme znelku v slučke
-    if (sounds.theme.paused) {
-      sounds.theme.currentTime = 0;
-      sounds.theme.play().catch(e => console.warn("Pravidlá prehliadača zablokovali znelku:", e));
-    }
-
-    if (state.logoFile && specFullLogoImg && !specFullLogoImg.src.endsWith(state.logoFile)) {
-      fullCandidateIndex = 0;
-      specFullLogoImg.src = state.logoFile;
-    }
-  } else {
-    // Ak sa logo skrylo, znelku pozastavíme a resetujeme čas
-    if (!sounds.theme.paused) {
-      sounds.theme.pause();
-      sounds.theme.currentTime = 0;
-    }
-  }
-}
+        if (isFullLogoActive && state.logoFile && specFullLogoImg && !specFullLogoImg.src.endsWith(state.logoFile)) {
+          fullCandidateIndex = 0;
+          specFullLogoImg.src = state.logoFile;
+        }
+      }
 
       const grid = document.getElementById('spec-grid');
       grid.innerHTML = '';
@@ -1681,6 +1656,10 @@ if (fullLogoOverlay) {
 
     // FUNKCIE PRE PREHRÁVANIE ZVUKOV
     function playSound(type) {
+      if (gameState && gameState.fullLogoMode) {
+        return; // Zvuky sú stíšené počas zobrazenia loga na celú obrazovku
+      }
+
       if (sounds[type]) {
         try {
           sounds[type].pause();
