@@ -1603,23 +1603,11 @@ if (fullLogoOverlay) {
   const isFullLogoActive = state.fullLogoMode;
   fullLogoOverlay.style.display = isFullLogoActive ? 'flex' : 'none';
 
-  //if (isFullLogoActive) {
-    // Ak sa zobrazilo logo na celú obrazovku, pustíme znelku v slučke
-  //  if (sounds.theme.paused) {
-  //    sounds.theme.currentTime = 0;
-  //    sounds.theme.play().catch(e => console.warn("Pravidlá prehliadača zablokovali znelku:", e));
-    }
-
-    if (state.logoFile && specFullLogoImg && !specFullLogoImg.src.endsWith(state.logoFile)) {
-      fullCandidateIndex = 0;
-      specFullLogoImg.src = state.logoFile;
-    }
-  } else {
-    // Ak sa logo skrylo, znelku pozastavíme a resetujeme čas
-    if (!sounds.theme.paused) {
-      sounds.theme.pause();
-      sounds.theme.currentTime = 0;
-    }
+  if (state.logoFile && specFullLogoImg && !specFullLogoImg.src.endsWith(state.logoFile)) {
+    fullCandidateIndex = 0;
+    specFullLogoImg.src = state.logoFile;
+  }
+}
   }
 }
 
