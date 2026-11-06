@@ -815,7 +815,7 @@
     const urlParams = new URLSearchParams(window.location.search);
     const roleParam = urlParams.get('role');
 
-    /* DOČASNE ZAKOMENTOVANÉ PRIHLASOVANIE DO MIESTNOSTÍ
+    // DOČASNE ZAKOMENTOVANÉ PRIHLASOVANIE DO MIESTNOSTÍ
     let roomIdParam = urlParams.get('room');
     if (!roomIdParam && (roleParam === 'moderator' || roleParam === 'divaci')) {
         roomIdParam = prompt("Zadajte kód relácie/miestnosti (napr. 100):", "100") || "default";
